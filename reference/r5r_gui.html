@@ -46,7 +46,7 @@ user interface for the 'r5r' package, allowing for interactive transit routing.<
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">r5r_gui</span><span class="op">(</span><span class="va">r5r_network</span>, <span class="va">center</span>, <span class="va">zoom</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">r5r_gui</span><span class="op">(</span><span class="va">r5r_network</span>, <span class="va">center</span>, <span class="va">zoom</span>, departure_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -65,6 +65,11 @@ and latitude for the map's center.</p></dd>
 
 <dt id="arg-zoom">zoom<a class="anchor" aria-label="anchor" href="#arg-zoom"></a></dt>
 <dd><p>An integer specifying the initial zoom level of the map.</p></dd>
+
+
+<dt id="arg-departure-date">departure_date<a class="anchor" aria-label="anchor" href="#arg-departure-date"></a></dt>
+<dd><p>A Date object specifying the initial departure date for
+the trip. Defaults to the current system date.</p></dd>
 
 </dl></div>
     <div id="value">
@@ -86,6 +91,14 @@ and latitude for the map's center.</p></dd>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Launch the application</span></span></span>
 <span class="r-in"><span><span class="fu">r5r_gui</span><span class="op">(</span><span class="va">r5r_network</span>, center <span class="op">=</span> <span class="va">map_center</span>, zoom <span class="op">=</span> <span class="va">map_zoom</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Launch with a specific departure date</span></span></span>
+<span class="r-in"><span><span class="fu">r5r_gui</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">r5r_network</span>,</span></span>
+<span class="r-in"><span>  center <span class="op">=</span> <span class="va">map_center</span>,</span></span>
+<span class="r-in"><span>  zoom <span class="op">=</span> <span class="va">map_zoom</span>,</span></span>
+<span class="r-in"><span>  departure_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2019-05-13"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
