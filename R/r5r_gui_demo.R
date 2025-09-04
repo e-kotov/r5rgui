@@ -54,7 +54,12 @@ r5r_gui_demo <- function() {
   }
 
   # Set Java memory options and build the r5r_network object
-  r5r_network <- r5r::build_network(data_path = data_path, verbose = FALSE)
+  # Add backward compatibility for r5r versions < 2.3.0
+  r5r_network <- if (utils::packageVersion("r5r") >= "2.3.0") {
+    r5r::build_network(data_path = data_path, verbose = FALSE)
+  } else {
+    r5r::setup_r5(data_path = data_path, verbose = FALSE)
+  }
 
   # Define the default map center and zoom level for Porto Alegre
   map_center <- c(-51.22, -30.05)
