@@ -43,10 +43,14 @@ r5r_gui <- function(
   zoom,
   departure_date = Sys.Date()
 ) {
+  # Get the name of the r5r_network object as a string
+  r5r_network_name <- deparse(substitute(r5r_network))
+
   # Pass arguments to the Shiny app environment
   app_dir <- system.file("shiny_app", package = "r5rgui")
   .GlobalEnv$.r5rgui_args <- list(
     r5r_network = r5r_network,
+    r5r_network_name = r5r_network_name, # Pass the name as well
     center = center,
     zoom = zoom,
     departure_date = departure_date

@@ -3,11 +3,20 @@ server <- function(input, output, session) {
   # Retrieve arguments passed from the r5r_gui function
   app_args <- get(".r5rgui_args", envir = .GlobalEnv)
   r5r_network <- app_args$r5r_network
+  r5r_network_name <- app_args$r5r_network_name
   map_center <- app_args$center
   map_zoom <- app_args$zoom
 
+  # --- Read demo mode status from global R options ---
+  # This will be TRUE if launched from r5r_gui_demo(), FALSE otherwise
+  is_demo_mode <- getOption("r5rgui.is_demo_mode", default = FALSE)
+
   # Update the departure date input with the value from the function arguments
-  shiny::updateDateInput(session, "departure_date", value = app_args$departure_date)
+  shiny::updateDateInput(
+    session,
+    "departure_date",
+    value = app_args$departure_date
+  )
 
   locations <- shiny::reactiveValues(start = NULL, end = NULL)
 
@@ -19,10 +28,9 @@ server <- function(input, output, session) {
     )
   })
 
-  # --- COORDINATE HANDLING LOGIC (unchanged except: normalize stored coords to 5 d.p.) ---
+  # --- COORDINATE HANDLING LOGIC (unchanged) ---
   shiny::observeEvent(input$map_click, {
     coords <- list(lon = input$map_click$lng, lat = input$map_click$lat)
-    # FIX: normalize before storing to avoid re-trigger via rounded text input
     coords <- list(lat = round(coords$lat, 5), lon = round(coords$lon, 5))
     locations$start <- coords
     session$sendCustomMessage(
@@ -41,7 +49,6 @@ server <- function(input, output, session) {
       lon = input$js_right_click$lng,
       lat = input$js_right_click$lat
     )
-    # FIX: normalize before storing to avoid re-trigger via rounded text input
     coords <- list(lat = round(coords$lat, 5), lon = round(coords$lon, 5))
     locations$end <- coords
     session$sendCustomMessage(
@@ -58,7 +65,6 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$marker_dragged, {
     drag_info <- input$marker_dragged
     new_coords <- list(lon = drag_info$lng, lat = drag_info$lat)
-    # FIX: normalize before storing to avoid re-trigger via rounded text input
     new_coords <- list(
       lat = round(new_coords$lat, 5),
       lon = round(new_coords$lon, 5)
@@ -99,8 +105,6 @@ server <- function(input, output, session) {
           ]]))
           if (length(parts) == 2 && !any(is.na(parts))) {
             coords <- list(lat = parts[1], lon = parts[2])
-
-            # <<< FIX already handled by normalization above; keep guard >>>
             if (!isTRUE(all.equal(locations$start, coords))) {
               locations$start <- coords
               session$sendCustomMessage(
@@ -127,8 +131,6 @@ server <- function(input, output, session) {
           ]]))
           if (length(parts) == 2 && !any(is.na(parts))) {
             coords <- list(lat = parts[1], lon = parts[2])
-
-            # <<< FIX already handled by normalization above; keep guard >>>
             if (!isTRUE(all.equal(locations$end, coords))) {
               locations$end <- coords
               session$sendCustomMessage(
@@ -225,7 +227,7 @@ server <- function(input, output, session) {
     }
   )
 
-  # --- MAP DRAWING OBSERVER (With rezooming disabled) ---
+  # --- MAP DRAWING OBSERVER (unchanged) ---
   shiny::observe({
     proxy <- mapgl::maplibre_proxy("map")
     mapgl::clear_layer(proxy, "route_layer")
@@ -274,9 +276,6 @@ server <- function(input, output, session) {
         line_opacity = 0.8,
         tooltip = "mode"
       )
-
-      # --- CHANGE 2: Disabled automatic rezooming by commenting out mapgl::fit_bounds() ---
-      # mapgl::fit_bounds(proxy, bbox = unname(sf::st_bbox(first_option)), animate = TRUE)
     } else if (!is.null(route_data()) && nrow(route_data()) == 0) {
       shiny::showNotification("No route found.", type = "warning")
     }
@@ -315,5 +314,91 @@ server <- function(input, output, session) {
       rownames = FALSE,
       class = 'cell-border stripe'
     )
+  })
+
+  # --- OBSERVER FOR COPY CODE BUTTON ---
+  shiny::observeEvent(input$copy_code, {
+    if (is.null(locations$start) || is.null(locations$end)) {
+      shiny::showNotification(
+        "Please set start and end points on the map first.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    departure_datetime_str <- paste(input$departure_date, input$departure_time)
+
+    # --- Assign to variable and add map view call ---
+    itinerary_call <- paste0(
+      "itinerary <- r5r::detailed_itineraries(\n",
+      "  r5r_network = r5r_network,\n",
+      "  origins = data.frame(\n",
+      "    id = \"start_point\",\n",
+      "    lat = ",
+      locations$start$lat,
+      ",\n",
+      "    lon = ",
+      locations$start$lon,
+      "\n",
+      "  ),\n",
+      "  destinations = data.frame(\n",
+      "    id = \"end_point\",\n",
+      "    lat = ",
+      locations$end$lat,
+      ",\n",
+      "    lon = ",
+      locations$end$lon,
+      "\n",
+      "  ),\n",
+      "  mode = c(\"WALK\", \"TRANSIT\"),\n",
+      "  departure_datetime = as.POSIXct(\"",
+      departure_datetime_str,
+      "\", format = \"%Y-%m-%d %H:%M\"),\n",
+      "  time_window = ",
+      as.integer(input$time_window),
+      "L,\n",
+      "  max_walk_time = ",
+      as.integer(input$max_walk_time),
+      "L,\n",
+      "  max_trip_duration = ",
+      as.integer(input$max_trip_duration),
+      "L,\n",
+      "  shortest_path = TRUE,\n",
+      "  drop_geometry = FALSE\n",
+      ")\n\n",
+      "# View the first travel option on a map\n",
+      "mapgl::maplibre_view(itinerary[itinerary$option == 1, ], column = \"mode\")"
+    )
+
+    if (is_demo_mode) {
+      setup_code <- paste0(
+        "# --- Setup code for r5r Porto Alegre sample data ---\n",
+        "data_path <- system.file(\"extdata/poa\", package = \"r5r\")\n",
+        "r5r_network <- r5r::build_network(data_path = data_path, verbose = FALSE)\n\n",
+        "# --- Itinerary calculation ---\n"
+      )
+      code_string <- paste0(setup_code, itinerary_call)
+    } else {
+      code_string <- sub(
+        "r5r_network = r5r_network",
+        paste("r5r_network =", r5r_network_name),
+        itinerary_call
+      )
+    }
+
+    shiny::showModal(shiny::modalDialog(
+      title = "R Code for detailed_itineraries()",
+      shiny::textAreaInput(
+        "code_output",
+        label = "Copy the code below:",
+        value = code_string,
+        width = "100%",
+        height = "300px",
+        resize = "vertical"
+      ),
+      easyClose = TRUE,
+      footer = shiny::modalButton("Dismiss")
+    ))
   })
 }

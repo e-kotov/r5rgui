@@ -2,7 +2,7 @@
 ui <- shiny::fluidPage(
   shiny::titlePanel("R5GUI - powered by {r5r}/R5 and {mapgl}"),
   tags$head(
-    # --- CHANGE 1: CSS to move notifications to the top right ---
+    # --- CSS for notifications and button positioning ---
     tags$style(shiny::HTML(
       "
       #shiny-notification-panel {
@@ -10,6 +10,19 @@ ui <- shiny::fluidPage(
         right: 10px;
         left: auto;
         bottom: auto;
+      }
+      
+      /* Wrapper to create a positioning context for the button */
+      .map-wrapper {
+        position: relative;
+      }
+      
+      /* Style for the button placed on the map */
+      .map-wrapper .btn {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        z-index: 10; /* Ensures the button is on top of the map */
       }
     "
     )),
@@ -135,7 +148,11 @@ ui <- shiny::fluidPage(
       shiny::helpText(
         "Left-click to set start. Right-click to set end. Drag markers or edit coordinates below."
       ),
-      shiny::actionButton("reset", "Reset Start/End Points"),
+      shiny::actionButton(
+        "reset",
+        "Reset Start/End Points",
+        style = "width: 100%;"
+      ),
       shiny::textInput(
         "start_coords_input",
         "Start (Lat, Lon)",
@@ -149,7 +166,12 @@ ui <- shiny::fluidPage(
     ),
     shiny::mainPanel(
       tags$style(type = "text/css", "#map {height: calc(60vh) !important;}"),
-      mapgl::maplibreOutput("map"),
+      # --- NEW: Wrapper div for map and button ---
+      shiny::div(
+        class = "map-wrapper",
+        mapgl::maplibreOutput("map"),
+        shiny::actionButton("copy_code", "Copy R Code")
+      ),
       shiny::hr(),
       h4("Itinerary Details"),
       DT::dataTableOutput("itinerary_table")
