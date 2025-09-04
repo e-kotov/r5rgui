@@ -329,41 +329,42 @@ server <- function(input, output, session) {
 
     departure_datetime_str <- paste(input$departure_date, input$departure_time)
 
-    # --- Assign to variable and add map view call ---
-    itinerary_call <- paste0(
+    # Conditionally define the setup code and the network object name.
+    if (is_demo_mode) {
+      # If it's a demo, provide the full setup script.
+      setup_code <- paste0(
+        "# --- Setup code for r5r Porto Alegre sample data ---\n",
+        "data_path <- system.file(\"extdata/poa\", package = \"r5r\")\n",
+        "r5r_network <- r5r::build_network(data_path = data_path, verbose = FALSE)\n\n",
+        "# --- Itinerary calculation ---\n"
+      )
+      # The itinerary call will refer to the `r5r_network` object created above.
+      network_object_name <- "r5r_network"
+    } else {
+      # If not a demo, the user has their own network object, so no setup code is needed.
+      setup_code <- ""
+      # Use the name of the object the user passed to the r5r_gui() function.
+      network_object_name <- r5r_network_name
+    }
+
+    itinerary_call <- glue::glue(
       "itinerary <- r5r::detailed_itineraries(\n",
-      "  r5r_network = r5r_network,\n",
+      "  r5r_network = {network_object_name},\n",
       "  origins = data.frame(\n",
       "    id = \"start_point\",\n",
-      "    lat = ",
-      locations$start$lat,
-      ",\n",
-      "    lon = ",
-      locations$start$lon,
-      "\n",
+      "    lat = {locations$start$lat},\n",
+      "    lon = {locations$start$lon}\n",
       "  ),\n",
       "  destinations = data.frame(\n",
       "    id = \"end_point\",\n",
-      "    lat = ",
-      locations$end$lat,
-      ",\n",
-      "    lon = ",
-      locations$end$lon,
-      "\n",
+      "    lat = {locations$end$lat},\n",
+      "    lon = {locations$end$lon}\n",
       "  ),\n",
       "  mode = c(\"WALK\", \"TRANSIT\"),\n",
-      "  departure_datetime = as.POSIXct(\"",
-      departure_datetime_str,
-      "\", format = \"%Y-%m-%d %H:%M\"),\n",
-      "  time_window = ",
-      as.integer(input$time_window),
-      "L,\n",
-      "  max_walk_time = ",
-      as.integer(input$max_walk_time),
-      "L,\n",
-      "  max_trip_duration = ",
-      as.integer(input$max_trip_duration),
-      "L,\n",
+      "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
+      "  time_window = {as.integer(input$time_window)}L,\n",
+      "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
+      "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
       "  shortest_path = TRUE,\n",
       "  drop_geometry = FALSE\n",
       ")\n\n",
@@ -371,21 +372,8 @@ server <- function(input, output, session) {
       "mapgl::maplibre_view(itinerary[itinerary$option == 1, ], column = \"mode\")"
     )
 
-    if (is_demo_mode) {
-      setup_code <- paste0(
-        "# --- Setup code for r5r Porto Alegre sample data ---\n",
-        "data_path <- system.file(\"extdata/poa\", package = \"r5r\")\n",
-        "r5r_network <- r5r::build_network(data_path = data_path, verbose = FALSE)\n\n",
-        "# --- Itinerary calculation ---\n"
-      )
-      code_string <- paste0(setup_code, itinerary_call)
-    } else {
-      code_string <- sub(
-        "r5r_network = r5r_network",
-        paste("r5r_network =", r5r_network_name),
-        itinerary_call
-      )
-    }
+    # Combine the setup code (if any) with the main itinerary call.
+    code_string <- paste0(setup_code, itinerary_call)
 
     shiny::showModal(shiny::modalDialog(
       title = "R Code for detailed_itineraries()",
