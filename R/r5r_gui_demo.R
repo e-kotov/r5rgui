@@ -56,7 +56,10 @@ r5r_gui_demo <- function() {
   # Set Java memory options and build the r5r_network object
   # Add backward compatibility for r5r versions < 2.3.0
   r5r_network <- if (utils::packageVersion("r5r") >= "2.3.0") {
-    r5r::build_network(data_path = data_path, verbose = FALSE)
+    utils::getFromNamespace("build_network", "r5r")(
+      data_path = data_path,
+      verbose = FALSE
+    )
   } else {
     r5r::setup_r5(data_path = data_path, verbose = FALSE)
   }

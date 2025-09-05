@@ -16,11 +16,21 @@ testthat::test_that("r5r_gui_demo() prepares correct arguments for r5r_gui", {
   mockery::stub(r5r_gui_demo, 'r5r_gui', function(...) {
     r5r_gui_args_captured <<- list(...)
   })
-  mockery::stub(r5r_gui_demo, 'r5r::build_network', "dummy_network")
+
+  # --- THE FIX: Conditionally mock the function based on r5r version ---
+  # Only try to mock 'build_network' if the installed {r5r} is new enough.
+  if (utils::packageVersion("r5r") >= "2.3.0") {
+    mockery::stub(r5r_gui_demo, 'r5r::build_network', "dummy_network")
+  }
+
+  # This mock for the older function is always safe to have.
+  # On new versions it just won't be used; on old versions it's essential.
   mockery::stub(r5r_gui_demo, 'r5r::setup_r5', "dummy_network")
 
+  # Run the function, which will now use the correct mock for the environment
   r5r_gui_demo()
 
+  # Assertions remain the same
   testthat::expect_false(is.null(r5r_gui_args_captured))
   testthat::expect_equal(r5r_gui_args_captured$center, c(-51.22, -30.05))
   testthat::expect_equal(r5r_gui_args_captured$zoom, 11)
