@@ -2,7 +2,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# r5rgui
+# r5rgui: Simple Shiny GUI for r5r <a href="https://www.ekotov.pro/r5rgui/"><img src="man/figures/logo.png" align="right" width="200" alt="r5rgui website" /></a>
 
 <!-- badges: start -->
 
@@ -15,9 +15,9 @@ status](https://www.r-pkg.org/badges/version/r5rgui)](https://CRAN.R-project.org
 coverage](https://codecov.io/gh/e-kotov/r5rgui/graph/badge.svg)](https://app.codecov.io/gh/e-kotov/r5rgui)
 <!-- badges: end -->
 
-The goal of r5rgui is to allow the user to interactively explore routes
-calcualted with `{r5r}` (https://github.com/ipeaGIT/r5r/) package in a
-`Shiny` app, e.g. for troubleshooting routing problems.
+The goal of `{r5rgui}` is to allow the user to interactively explore
+routes calcualted with `{r5r}` (https://github.com/ipeaGIT/r5r/) package
+in a `Shiny` app, e.g. for troubleshooting routing problems.
 
 ## Installation
 

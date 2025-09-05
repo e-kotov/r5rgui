@@ -1,6 +1,6 @@
 Package: r5rgui
 Title: Simple Shiny GUI for r5r
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: 
     person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0001-6690-5345"))
