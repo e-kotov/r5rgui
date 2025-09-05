@@ -1,9 +1,5 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
-#
-# NOTE: This workflow is overkill for most R packages and
-# check-standard.yaml is likely a better choice.
-# usethis::use_github_action("check-standard") will install it.
 on:
   push:
     branches: [main, master]
@@ -26,7 +22,6 @@ jobs:
           - {os: macos-latest,   r: 'release'}
 
           - {os: windows-latest, r: 'release'}
-          # use 4.0 or 4.1 to check with rtools40's older compiler
           - {os: windows-latest, r: 'oldrel-4'}
 
           - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
@@ -51,14 +46,15 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      # Java setup for macOS (using the proper arm64 architecture for new runners)
+      # --- CORRECTED JAVA SETUP ---
+      # Java setup for macOS (using the proper arm64 architecture)
       - name: Java setup (macOS)
         if: runner.os == 'macOS'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-          architecture: x64 # Most macos-latest runners are still x64
+          architecture: arm64
 
       # Java setup for non-macOS runners
       - name: Java setup (non-macOS)
