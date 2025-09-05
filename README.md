@@ -49,7 +49,7 @@ r5r_gui_demo()
 ```
 
 ![r5gui demo in
-action](https://github.com/user-attachments/assets/58e8828e-e307-4cc7-9c93-73a4c89e1abf)
+action](https://github.com/user-attachments/assets/c63723f0-f354-4df1-82e2-17c90574da63)
 
 What the demo runs internally is this simple example code:
 
