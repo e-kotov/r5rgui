@@ -46,7 +46,6 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
-      # --- CORRECTED JAVA SETUP ---
       # Java setup for macOS (using the proper arm64 architecture)
       - name: Java setup (macOS)
         if: runner.os == 'macOS'
