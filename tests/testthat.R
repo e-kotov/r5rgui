@@ -6,7 +6,7 @@
 # # * https://r-pkgs.org/testing-design.html#sec-tests-files-overview
 # # * https://testthat.r-lib.org/articles/special-files.html
 
-# library(testthat)
-# library(r5rgui)
+library(testthat)
+library(r5rgui)
 
-# test_check("r5rgui")
+test_check("r5rgui")
