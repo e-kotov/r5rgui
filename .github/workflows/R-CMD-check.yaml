@@ -51,6 +51,23 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
+      # Java setup for macOS (using the proper arm64 architecture for new runners)
+      - name: Java setup (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: x64 # Most macos-latest runners are still x64
+
+      # Java setup for non-macOS runners
+      - name: Java setup (non-macOS)
+        if: runner.os != 'macOS'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::rcmdcheck
