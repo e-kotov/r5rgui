@@ -17,7 +17,6 @@ testthat::test_that("r5r_gui_demo() prepares correct arguments for r5r_gui", {
     r5r_gui_args_captured <<- list(...)
   })
 
-  # --- THE FIX: Conditionally mock the function based on r5r version ---
   # Only try to mock 'build_network' if the installed {r5r} is new enough.
   if (utils::packageVersion("r5r") >= "2.3.0") {
     mockery::stub(r5r_gui_demo, 'r5r::build_network', "dummy_network")
@@ -49,7 +48,6 @@ testthat::test_that("r5r_gui() prepares arguments correctly", {
   run_app_called_with <- NULL
   captured_global_args <- NULL
 
-  # --- THE FIX: A smarter mock function ---
   # This mock now does two things:
   # 1. It captures the app directory path for a later test.
   # 2. It captures the global arguments variable *before* `on.exit` cleans it up.

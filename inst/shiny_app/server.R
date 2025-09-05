@@ -333,6 +333,14 @@ server <- function(input, output, session) {
   })
 
   # --- OBSERVER FOR COPY CODE BUTTON ---
+  # This observer handles the "Copy Code" button functionality.
+  # When triggered, it generates R code that reproduces the current routing query, allowing users to copy and run it outside the GUI.
+  #
+  # The observer includes logic to handle compatibility with different versions of the r5r package.
+  # Specifically, starting from r5r version 2.3.0, the routing functions and argument names changed:
+  #   - The network object argument changed from 'r5r_core' to 'r5r_network'.
+  #   - The function signatures may differ between versions.
+  # The code checks the installed r5r version and adjusts the generated code accordingly, ensuring that the copied code will work regardless of which r5r version the user has installed.
   shiny::observeEvent(input$copy_code, {
     if (is.null(locations$start) || is.null(locations$end)) {
       shiny::showNotification(
@@ -353,17 +361,19 @@ server <- function(input, output, session) {
     network_object_name_for_code <- r5r_network_name
 
     if (is_demo_mode) {
-      setup_function <- if (r5r_version_ge_230) {
-        "r5r::build_network"
-      } else {
-        "r5r::setup_r5"
-      }
       network_object_name_for_code <- "r5r_network" # This is the object name created in the setup code
+
+      # Determine the full line of code for setting up the network
+      setup_call_string <- if (r5r_version_ge_230) {
+        "r5r_network <- r5r::build_network(data_path = data_path, verbose = FALSE)"
+      } else {
+        "r5r_network <- r5r::setup_r5(data_path = data_path, verbose = FALSE)"
+      }
 
       setup_code <- glue::glue(
         "# --- Setup code for r5r Porto Alegre sample data ---\n",
         "data_path <- system.file(\"extdata/poa\", package = \"r5r\")\n",
-        "r5r_network <- {setup_function}(data_path = data_path, verbose = FALSE)\n\n",
+        "{setup_call_string}\n\n",
         "# --- Itinerary calculation ---\n"
       )
     }
