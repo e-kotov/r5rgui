@@ -51,7 +51,6 @@ rsconnect/
 
 private
 rjavaenv
-README.qmd
 .DS_Store
 .Rprofile
 .Renviron
