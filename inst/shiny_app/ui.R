@@ -1,6 +1,20 @@
 # --- UI DEFINITION (With notification styling) ---
 ui <- shiny::fluidPage(
-  shiny::titlePanel("R5GUI - powered by {r5r}/R5 and {mapgl}"),
+  # Replace titlePanel with a div for custom layout with logo
+  shiny::div(
+    style = "display: flex; align-items: center; padding: 10px 0;",
+    shiny::img(
+      src = "r5rgui_assets/logo.png",
+      height = "50px",
+      style = "margin-right: 15px;"
+    ),
+    shiny::h2(
+      shiny::HTML(
+        "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+      ),
+      style = "margin: 0;"
+    )
+  ),
   tags$head(
     # --- CSS for notifications and button positioning ---
     tags$style(shiny::HTML(
@@ -111,6 +125,7 @@ ui <- shiny::fluidPage(
 
   shiny::sidebarLayout(
     shiny::sidebarPanel(
+      width = 3,
       h4("Trip Parameters"),
       shiny::dateInput(
         "departure_date",
@@ -165,8 +180,9 @@ ui <- shiny::fluidPage(
       )
     ),
     shiny::mainPanel(
-      tags$style(type = "text/css", "#map {height: calc(60vh) !important;}"),
-      # --- NEW: Wrapper div for map and button ---
+      width = 9,
+      tags$style(type = "text/css", "#map {height: calc(50vh) !important;}"),
+      # --- Wrapper div for map and button ---
       shiny::div(
         class = "map-wrapper",
         mapgl::maplibreOutput("map"),

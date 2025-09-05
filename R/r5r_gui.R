@@ -46,6 +46,12 @@ r5r_gui <- function(
   # Get the name of the r5r_network object as a string
   r5r_network_name <- deparse(substitute(r5r_network))
 
+  # Add resource path to serve logo from the man/figures directory
+  figures_path <- system.file("man/figures", package = "r5rgui")
+  if (nzchar(figures_path)) {
+    shiny::addResourcePath("r5rgui_assets", figures_path)
+  }
+
   # Pass arguments to the Shiny app environment
   app_dir <- system.file("shiny_app", package = "r5rgui")
   .GlobalEnv$.r5rgui_args <- list(
@@ -55,7 +61,15 @@ r5r_gui <- function(
     zoom = zoom,
     departure_date = departure_date
   )
-  on.exit(rm(".r5rgui_args", envir = .GlobalEnv))
+
+  # Set up a single on.exit call to clean up both the global variable and
+  # the resource path when the app closes.
+  on.exit({
+    rm(".r5rgui_args", envir = .GlobalEnv)
+    if (nzchar(figures_path)) {
+      shiny::removeResourcePath("r5rgui_assets")
+    }
+  })
 
   shiny::runApp(app_dir)
 }
