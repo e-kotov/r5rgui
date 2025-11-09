@@ -102,3 +102,68 @@ testthat::test_that("r5r_gui() cleans up the global environment variable on exit
     label = "The .r5rgui_args object should be removed after the function exits."
   )
 })
+
+# --- Tests for automatic centering and zooming ---
+
+testthat::test_that("r5r_gui() sets automatic center and zoom when not provided", {
+  # This test requires a real r5r_net object
+  testthat::skip_if_not(exists("r5r_net"))
+
+  captured_global_args <- NULL
+  mockery::stub(r5r_gui, "shiny::runApp", function(...) {
+    if (exists(".r5rgui_args", envir = .GlobalEnv)) {
+      captured_global_args <<- get(".r5rgui_args", envir = .GlobalEnv)
+    }
+  })
+
+  r5r_gui(r5r_network = r5r_net)
+
+  testthat::expect_false(
+    is.null(captured_global_args$center),
+    label = "Center should be calculated"
+  )
+  testthat::expect_false(
+    is.null(captured_global_args$zoom),
+    label = "Zoom should be calculated"
+  )
+  testthat::expect_true(is.numeric(captured_global_args$center))
+  testthat::expect_true(is.numeric(captured_global_args$zoom))
+  testthat::expect_equal(length(captured_global_args$center), 2)
+})
+
+testthat::test_that("r5r_gui() uses fallback and shows message for older r5r versions", {
+  testthat::skip_if_not(exists("r5r_net"))
+
+  captured_global_args <- NULL
+
+  # Mock shiny::runApp to capture the arguments
+  mockery::stub(r5r_gui, "shiny::runApp", function(...) {
+    if (exists(".r5rgui_args", envir = .GlobalEnv)) {
+      captured_global_args <<- get(".r5rgui_args", envir = .GlobalEnv)
+    }
+  })
+
+  # Mock packageVersion to simulate an old r5r version
+  mockery::stub(r5r_gui, "utils::packageVersion", function(pkg) {
+    if (pkg == "r5r") {
+      return("2.3.0")
+    }
+    return(base::packageVersion(pkg))
+  })
+
+  # Check for the message
+  testthat::expect_message(
+    r5r_gui(r5r_network = r5r_net),
+    "Calculating network bounding box with a legacy method. This is slow."
+  )
+
+  # Check that center and zoom were still calculated
+  testthat::expect_false(
+    is.null(captured_global_args$center),
+    label = "Center should be calculated with fallback"
+  )
+  testthat::expect_false(
+    is.null(captured_global_args$zoom),
+    label = "Zoom should be calculated with fallback"
+  )
+})
