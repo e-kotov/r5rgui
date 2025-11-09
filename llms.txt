@@ -1,7 +1,8 @@
 # r5rgui: Simple Shiny GUI for r5r
 
-The goal of `{r5rgui}` is to allow the user to interactively explore
-routes calcualted with [r5r](https://github.com/ipeaGIT/r5r)
+The goal of [r5rgui](https://github.com/e-kotov/r5rgui) is to allow the
+user to interactively explore routes calcualted with
+[r5r](https://github.com/ipeaGIT/r5r)
 (<https://github.com/ipeaGIT/r5r/>) package in a `Shiny` app, e.g. for
 troubleshooting routing problems.
 
