@@ -43,7 +43,8 @@ r5r_gui <- function(
   # if center or zoom are not provided, calculate them from the network bbox
   if (is.null(center) || is.null(zoom)) {
     if (utils::packageVersion("r5r") >= "2.3.0999") {
-      bbox <- r5r::street_network_bbox(r5r_network, output = "vector")
+      street_network_bbox_fun <- get("street_network_bbox", asNamespace("r5r"))
+      bbox <- street_network_bbox_fun(r5r_network, output = "vector")
     } else {
       message(
         "Calculating network bounding box with a legacy method. This is slow."
