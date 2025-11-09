@@ -28,8 +28,7 @@ You can install the development version of r5rgui from
 # install.packages("pak")
 pak::pak("e-kotov/r5rgui")
 
-
-# setup java as you would for r5r package
+# setup Java as you would for r5r package
 # install.packages('rJavaEnv')
 
 # check version of Java currently installed (if any) 
@@ -54,6 +53,7 @@ action](https://github.com/user-attachments/assets/c63723f0-f354-4df1-82e2-17c90
 What the demo runs internally is this simple example code:
 
 ``` r
+library(r5r)
 data_path <- system.file("extdata/poa", package = "r5r")
 r5r_network <- build_network(data_path = data_path, verbose = FALSE)
 r5r_gui(r5r_network, center = c(-51.22, -30.05), zoom = 11)
