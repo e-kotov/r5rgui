@@ -6,6 +6,8 @@ Authors@R:
            comment = c(ORCID = "0000-0001-6690-5345"))
 Description: Explore the r5r routing interactively with a Shiny app.
 License: MIT + file LICENSE
+URL: https://github.com/e-kotov/r5rgui, https://www.ekotov.pro/r5rgui/
+BugReports: https://github.com/e-kotov/r5rgui/issues
 Imports:
     DT,
     mapgl,
