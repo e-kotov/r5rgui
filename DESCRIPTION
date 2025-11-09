@@ -1,10 +1,11 @@
 Package: r5rgui
-Title: Simple Shiny GUI for r5r
+Title: Simple Shiny GUI for 'r5r'
 Version: 0.1.0
 Authors@R: 
     person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0001-6690-5345"))
-Description: Explore the r5r routing interactively with a Shiny app.
+Description: Interactively build and explore public transit routes with
+    'r5r' package via a Shiny app.
 License: MIT + file LICENSE
 URL: https://github.com/e-kotov/r5rgui, https://www.ekotov.pro/r5rgui/
 BugReports: https://github.com/e-kotov/r5rgui/issues
@@ -17,11 +18,8 @@ Imports:
 Suggests: 
     mockery,
     quarto,
-    rJavaEnv,
     shinytest2,
     testthat (>= 3.0.0)
-VignetteBuilder: 
-    quarto
 Config/testthat/edition: 3
 Encoding: UTF-8
 Language: en

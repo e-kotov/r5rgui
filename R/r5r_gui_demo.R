@@ -18,11 +18,10 @@
 #' @return This function does not return a value; it launches a Shiny application.
 #' @export
 #'
-#' @examples
-#' \dontrun{
+#' @examplesIf identical(tolower(Sys.getenv("NOT_CRAN")), "true")
 #' # To run the demo application, simply call the function:
 #' r5r_gui_demo()
-#' }
+#'
 r5r_gui_demo <- function() {
   # Check if the r5r package is installed, as it's essential for the demo
   if (!requireNamespace("r5r", quietly = TRUE)) {

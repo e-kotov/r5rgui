@@ -25,8 +25,8 @@ Please note that \code{r5r} may need to download the sample data on first use,
 which requires an internet connection.
 }
 \examples{
-\dontrun{
+\dontshow{if (identical(tolower(Sys.getenv("NOT_CRAN")), "true")) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 # To run the demo application, simply call the function:
 r5r_gui_demo()
-}
+\dontshow{\}) # examplesIf}
 }

@@ -6,7 +6,11 @@
 # # * https://r-pkgs.org/testing-design.html#sec-tests-files-overview
 # # * https://testthat.r-lib.org/articles/special-files.html
 
-library(testthat)
-library(r5rgui)
+if (identical(tolower(Sys.getenv("NOT_CRAN")), "true")) {
+  options(java.parameters = '-Xmx2G')
 
-test_check("r5rgui")
+  library(testthat)
+  library(r5rgui)
+
+  test_check("r5rgui")
+}

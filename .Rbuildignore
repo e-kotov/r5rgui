@@ -11,3 +11,6 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^CITATION\.cff$
+^codemeta\.json$
+^man\/figures\/logo\.png$

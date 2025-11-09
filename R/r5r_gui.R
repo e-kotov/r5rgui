@@ -12,10 +12,9 @@
 #'
 #' @export
 #'
-#' @examples
-#' \dontrun{
+#' @examplesIf identical(tolower(Sys.getenv("NOT_CRAN")), "true")
 #' # First, build the r5r network
-#' options(java.parameters = "-Xmx4G")
+#' library(r5r)
 #' data_path <- system.file("extdata/poa", package = "r5r")
 #' r5r_network <- setup_r5(data_path = data_path)
 #'
@@ -23,14 +22,13 @@
 #' # The map will be automatically centered and zoomed to the network's extent
 #' r5r_gui(r5r_network)
 #'
-#' # Launch with a specific departure date
+#' # Launch with a specific departure date with auto-zoom and center
 #' r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 #'
 #' # Manually define map center and zoom
 #' map_center <- c(-51.22, -30.05)
 #' map_zoom <- 11
 #' r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
-#' }
 r5r_gui <- function(
   r5r_network,
   center = NULL,

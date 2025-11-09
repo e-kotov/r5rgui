@@ -1,0 +1,11 @@
+bibentry(
+  key      = "r5rgui",
+  bibtype  = "Manual",
+  title    = "Interactively build and explore public transit routes with
+    'r5r' package via a Shiny app.",
+  author   = person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0000-0001-6690-5345")),
+  year     = "2025",
+  url      = "https://github.com/e-kotov/r5rgui",
+  doi      = "10.32614/CRAN.package.r5rgui"
+)

@@ -23,9 +23,9 @@ This function launches a Shiny application that provides a graphical
 user interface for the 'r5r' package, allowing for interactive transit routing.
 }
 \examples{
-\dontrun{
+\dontshow{if (identical(tolower(Sys.getenv("NOT_CRAN")), "true")) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 # First, build the r5r network
-options(java.parameters = "-Xmx4G")
+library(r5r)
 data_path <- system.file("extdata/poa", package = "r5r")
 r5r_network <- setup_r5(data_path = data_path)
 
@@ -33,12 +33,12 @@ r5r_network <- setup_r5(data_path = data_path)
 # The map will be automatically centered and zoomed to the network's extent
 r5r_gui(r5r_network)
 
-# Launch with a specific departure date
+# Launch with a specific departure date with auto-zoom and center
 r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 
 # Manually define map center and zoom
 map_center <- c(-51.22, -30.05)
 map_zoom <- 11
 r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
-}
+\dontshow{\}) # examplesIf}
 }
