@@ -14,3 +14,4 @@
 ^CITATION\.cff$
 ^codemeta\.json$
 ^man\/figures\/logo\.png$
+^CRAN-SUBMISSION$
