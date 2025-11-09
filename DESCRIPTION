@@ -15,6 +15,7 @@ Imports:
 Suggests: 
     mockery,
     quarto,
+    rJavaEnv,
     shinytest2,
     testthat (>= 3.0.0)
 VignetteBuilder: 
