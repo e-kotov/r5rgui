@@ -55,9 +55,17 @@ jobs:
           java-version: '21'
           architecture: arm64
 
-      # Java setup for non-macOS runners
-      - name: Java setup (non-macOS)
-        if: runner.os != 'macOS'
+      # ADDED: Java 11 setup specifically for windows-latest with oldrel-4 R
+      - name: Java setup (Windows oldrel-4)
+        if: runner.os == 'Windows' && matrix.config.r == 'oldrel-4'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      # MODIFIED: Java 21 setup for all other non-macOS runners
+      - name: Java setup (non-macOS, non-windows-oldrel-4)
+        if: runner.os != 'macOS' && !(runner.os == 'Windows' && matrix.config.r == 'oldrel-4')
         uses: actions/setup-java@v4
         with:
           distribution: temurin
