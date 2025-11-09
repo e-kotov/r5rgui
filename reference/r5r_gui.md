@@ -7,7 +7,7 @@ routing.
 ## Usage
 
 ``` r
-r5r_gui(r5r_network, center, zoom, departure_date = Sys.Date())
+r5r_gui(r5r_network, center = NULL, zoom = NULL, departure_date = Sys.Date())
 ```
 
 ## Arguments
@@ -20,11 +20,16 @@ r5r_gui(r5r_network, center, zoom, departure_date = Sys.Date())
 - center:
 
   A numeric vector of length 2, specifying the initial longitude and
-  latitude for the map's center.
+  latitude for the map's center. If `NULL` (the default), the map will
+  be centered on the bounding box of the `r5r_network`. If `{r5r}` is
+  below version 2.4.0, calculating the bounding box may be slow.
 
 - zoom:
 
-  An integer specifying the initial zoom level of the map.
+  An integer specifying the initial zoom level of the map. If `NULL`
+  (the default), the zoom level will be automatically calculated to fit
+  the bounding box of the `r5r_network`. If `{r5r}` is below version
+  2.4.0, calculating the bounding box may be slow.
 
 - departure_date:
 
@@ -44,19 +49,16 @@ options(java.parameters = "-Xmx4G")
 data_path <- system.file("extdata/poa", package = "r5r")
 r5r_network <- setup_r5(data_path = data_path)
 
-# Define map center and zoom
-map_center <- c(-51.22, -30.05)
-map_zoom <- 11
-
-# Launch the application
-r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
+# Launch the application without specifying center and zoom
+# The map will be automatically centered and zoomed to the network's extent
+r5r_gui(r5r_network)
 
 # Launch with a specific departure date
-r5r_gui(
-  r5r_network,
-  center = map_center,
-  zoom = map_zoom,
-  departure_date = as.Date("2019-05-13")
-)
+r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
+
+# Manually define map center and zoom
+map_center <- c(-51.22, -30.05)
+map_zoom <- 11
+r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
 } # }
 ```
