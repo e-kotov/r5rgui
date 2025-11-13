@@ -1,64 +1,72 @@
-testthat::skip_if_not_installed("r5r")
-testthat::skip_if_not_installed("shiny")
-testthat::skip_if_not_installed("mockery")
+skip_on_cran()
+skip_if_not_installed("r5r")
+skip_if_not_installed("shiny")
+skip_if_not_installed("rlang")
 
 # --- Test for r5r_gui_demo() ---
-testthat::test_that("r5r_gui_demo() fails gracefully if r5r is not installed", {
-  mockery::stub(r5r_gui_demo, 'requireNamespace', FALSE)
-  testthat::expect_error(
+test_that("r5r_gui_demo() and r5r_gui() fail gracefully if r5r is not installed", {
+  local_mocked_bindings(
+    check_r5r_available = function() FALSE,
+    .package = "r5rgui"
+  )
+
+  expect_error(
     r5r_gui_demo(),
-    "The 'r5r' package is required to run this demo."
+    "The 'r5r' package is required to run this demo. Please install it first."
+  )
+
+  expect_error(
+    r5r_gui(r5r_network = "dummy_network"),
+    "The 'r5r' package is required to run this demo. Please install it first."
   )
 })
 
-testthat::test_that("r5r_gui_demo() prepares correct arguments for r5r_gui", {
+test_that("r5r_gui_demo() prepares correct arguments for r5r_gui", {
   r5r_gui_args_captured <- NULL
-  mockery::stub(r5r_gui_demo, 'r5r_gui', function(...) {
-    r5r_gui_args_captured <<- list(...)
-  })
 
-  # Only try to mock 'build_network' if the installed {r5r} is new enough.
+  local_mocked_bindings(
+    r5r_gui = function(...) {
+      r5r_gui_args_captured <<- list(...)
+    },
+    .package = "r5rgui"
+  )
+
   if (utils::packageVersion("r5r") >= "2.3.0") {
-    mockery::stub(r5r_gui_demo, 'r5r::build_network', "dummy_network")
+    local_mocked_bindings(
+      build_network = function(...) "dummy_network",
+      .package = "r5r"
+    )
   }
+  local_mocked_bindings(
+    setup_r5 = function(...) "dummy_network",
+    .package = "r5r"
+  )
 
-  # This mock for the older function is always safe to have.
-  # On new versions it just won't be used; on old versions it's essential.
-  mockery::stub(r5r_gui_demo, 'r5r::setup_r5', "dummy_network")
-
-  # Run the function, which will now use the correct mock for the environment
   r5r_gui_demo()
 
-  # Assertions remain the same
-  testthat::expect_false(is.null(r5r_gui_args_captured))
-  testthat::expect_equal(r5r_gui_args_captured$center, c(-51.22, -30.05))
-  testthat::expect_equal(r5r_gui_args_captured$zoom, 11)
+  expect_false(is.null(r5r_gui_args_captured))
+  expect_equal(r5r_gui_args_captured$center, c(-51.22, -30.05))
+  expect_equal(r5r_gui_args_captured$zoom, 11)
 })
 
 
 # --- Test for r5r_gui() ---
 
-testthat::test_that("r5r_gui() prepares arguments correctly", {
+test_that("r5r_gui() prepares arguments correctly for the shiny app", {
   dummy_net <- list(name = "dummy_network_object")
   dummy_center <- c(-51.22, -30.05)
   dummy_zoom <- 11
   dummy_date <- as.Date("2025-09-01")
 
-  # These variables will capture the state from *inside* the mock
-  run_app_called_with <- NULL
-  captured_global_args <- NULL
+  captured_server_function <- NULL
 
-  # This mock now does two things:
-  # 1. It captures the app directory path for a later test.
-  # 2. It captures the global arguments variable *before* `on.exit` cleans it up.
-  mockery::stub(r5r_gui, "shiny::runApp", function(appDir, ...) {
-    run_app_called_with <<- appDir
-    if (exists(".r5rgui_args", envir = .GlobalEnv)) {
-      captured_global_args <<- get(".r5rgui_args", envir = .GlobalEnv)
-    }
-  })
+  local_mocked_bindings(
+    shinyApp = function(ui, server) {
+      captured_server_function <<- server
+    },
+    .package = "shiny"
+  )
 
-  # Execute the function
   r5r_gui(
     r5r_network = dummy_net,
     center = dummy_center,
@@ -66,104 +74,86 @@ testthat::test_that("r5r_gui() prepares arguments correctly", {
     departure_date = dummy_date
   )
 
-  # --- ASSERTIONS ---
-  # Now, we assert against our captured snapshot, not the live global environment.
-
-  # 1. Check if the capture was successful
-  testthat::expect_false(
-    is.null(captured_global_args),
-    label = "The mock should have captured the .r5rgui_args list."
+  expect_false(
+    is.null(captured_server_function),
+    label = "The mock should have captured the server function."
   )
+  expect_true(is.function(captured_server_function))
 
-  # 2. Check the contents of the captured list
-  testthat::expect_identical(captured_global_args$r5r_network, dummy_net)
-  testthat::expect_identical(captured_global_args$center, dummy_center)
-  testthat::expect_identical(captured_global_args$zoom, dummy_zoom)
-  testthat::expect_identical(captured_global_args$departure_date, dummy_date)
-  testthat::expect_identical(captured_global_args$r5r_network_name, "dummy_net")
+  server_env <- rlang::fn_env(captured_server_function)
+  captured_args <- server_env$app_args
 
-  # 3. Check that runApp was still called correctly
-  expected_app_dir <- system.file("shiny_app", package = "r5rgui")
-  testthat::expect_equal(run_app_called_with, expected_app_dir)
-})
-
-testthat::test_that("r5r_gui() cleans up the global environment variable on exit", {
-  # This test remains crucial to prove the cleanup works.
-  mockery::stub(r5r_gui, "shiny::runApp", function(...) {
-    # We can even mock it to do nothing, just letting the function exit.
-  })
-
-  # Execute the function
-  r5r_gui(r5r_network = list(), center = c(0, 0), zoom = 1)
-
-  # The most important check: did the `on.exit` call work after a successful run?
-  testthat::expect_false(
-    exists(".r5rgui_args", envir = .GlobalEnv),
-    label = "The .r5rgui_args object should be removed after the function exits."
-  )
+  expect_identical(captured_args$r5r_network, dummy_net)
+  expect_identical(captured_args$center, dummy_center)
+  expect_identical(captured_args$zoom, dummy_zoom)
+  expect_identical(captured_args$departure_date, dummy_date)
+  expect_identical(captured_args$r5r_network_name, "dummy_net")
 })
 
 # --- Tests for automatic centering and zooming ---
 
-testthat::test_that("r5r_gui() sets automatic center and zoom when not provided", {
-  # This test requires a real r5r_net object
-  testthat::skip_if_not(exists("r5r_net"))
+test_that("r5r_gui() sets automatic center and zoom when not provided", {
+  skip_if_not(exists("r5r_net"))
 
-  captured_global_args <- NULL
-  mockery::stub(r5r_gui, "shiny::runApp", function(...) {
-    if (exists(".r5rgui_args", envir = .GlobalEnv)) {
-      captured_global_args <<- get(".r5rgui_args", envir = .GlobalEnv)
-    }
-  })
+  captured_server_function <- NULL
+  local_mocked_bindings(
+    shinyApp = function(ui, server) {
+      captured_server_function <<- server
+    },
+    .package = "shiny"
+  )
 
   r5r_gui(r5r_network = r5r_net)
 
-  testthat::expect_false(
-    is.null(captured_global_args$center),
+  server_env <- rlang::fn_env(captured_server_function)
+  captured_args <- server_env$app_args
+
+  expect_false(
+    is.null(captured_args$center),
     label = "Center should be calculated"
   )
-  testthat::expect_false(
-    is.null(captured_global_args$zoom),
-    label = "Zoom should be calculated"
-  )
-  testthat::expect_true(is.numeric(captured_global_args$center))
-  testthat::expect_true(is.numeric(captured_global_args$zoom))
-  testthat::expect_equal(length(captured_global_args$center), 2)
+  expect_false(is.null(captured_args$zoom), label = "Zoom should be calculated")
+  expect_true(is.numeric(captured_args$center))
+  expect_true(is.numeric(captured_args$zoom))
+  expect_equal(length(captured_args$center), 2)
 })
 
-testthat::test_that("r5r_gui() uses fallback and shows message for older r5r versions", {
-  testthat::skip_if_not(exists("r5r_net"))
+test_that("r5r_gui() uses fallback and shows message for older r5r versions", {
+  skip_if_not(exists("r5r_net"))
 
-  captured_global_args <- NULL
+  captured_server_function <- NULL
 
-  # Mock shiny::runApp to capture the arguments
-  mockery::stub(r5r_gui, "shiny::runApp", function(...) {
-    if (exists(".r5rgui_args", envir = .GlobalEnv)) {
-      captured_global_args <<- get(".r5rgui_args", envir = .GlobalEnv)
-    }
-  })
+  local_mocked_bindings(
+    shinyApp = function(ui, server) {
+      captured_server_function <<- server
+    },
+    .package = "shiny"
+  )
 
-  # Mock packageVersion to simulate an old r5r version
-  mockery::stub(r5r_gui, "utils::packageVersion", function(pkg) {
-    if (pkg == "r5r") {
-      return("2.3.0")
-    }
-    return(base::packageVersion(pkg))
-  })
+  local_mocked_bindings(
+    packageVersion = function(pkg) {
+      if (pkg == "r5r") {
+        return("2.3.0")
+      }
+      return(base::packageVersion(pkg))
+    },
+    .package = "utils"
+  )
 
-  # Check for the message
-  testthat::expect_message(
+  expect_message(
     r5r_gui(r5r_network = r5r_net),
     "Calculating network bounding box with a legacy method. This is slow."
   )
 
-  # Check that center and zoom were still calculated
-  testthat::expect_false(
-    is.null(captured_global_args$center),
+  server_env <- rlang::fn_env(captured_server_function)
+  captured_args <- server_env$app_args
+
+  expect_false(
+    is.null(captured_args$center),
     label = "Center should be calculated with fallback"
   )
-  testthat::expect_false(
-    is.null(captured_global_args$zoom),
+  expect_false(
+    is.null(captured_args$zoom),
     label = "Zoom should be calculated with fallback"
   )
 })

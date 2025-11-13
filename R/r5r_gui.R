@@ -15,7 +15,7 @@
 #' @examples
 #' \dontrun{
 #' # First, build the r5r network
-#' options(java.parameters = "-Xmx4G")
+#' library(r5r)
 #' data_path <- system.file("extdata/poa", package = "r5r")
 #' r5r_network <- setup_r5(data_path = data_path)
 #'
@@ -23,7 +23,7 @@
 #' # The map will be automatically centered and zoomed to the network's extent
 #' r5r_gui(r5r_network)
 #'
-#' # Launch with a specific departure date
+#' # Launch with a specific departure date with auto-zoom and center
 #' r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 #'
 #' # Manually define map center and zoom
@@ -37,6 +37,12 @@ r5r_gui <- function(
   zoom = NULL,
   departure_date = Sys.Date()
 ) {
+  if (!check_r5r_available()) {
+    stop(
+      "The 'r5r' package is required to run this demo. Please install it first.",
+      call. = FALSE
+    )
+  }
   # Get the name of the r5r_network object as a string
   r5r_network_name <- deparse(substitute(r5r_network))
 
@@ -71,18 +77,30 @@ r5r_gui <- function(
   assets_path <- system.file("assets", package = "r5rgui")
   shiny::addResourcePath("r5rgui_assets", assets_path)
 
-  # Pass arguments to the Shiny app environment
-  app_dir <- system.file("shiny_app", package = "r5rgui")
-  .GlobalEnv$.r5rgui_args <- list(
+  # Load the UI from its file
+  ui_path <- system.file("shiny_app", "ui.R", package = "r5rgui")
+  ui <- source(ui_path, local = TRUE)$value
+
+  # Load the server factory from its file
+  server_factory_path <- system.file(
+    "shiny_app",
+    "server.R",
+    package = "r5rgui"
+  )
+  server_factory <- source(server_factory_path, local = TRUE)$value
+
+  # Create a list of arguments to pass to the server
+  app_args <- list(
     r5r_network = r5r_network,
-    r5r_network_name = r5r_network_name, # Pass the name as well
+    r5r_network_name = r5r_network_name,
     center = center,
     zoom = zoom,
     departure_date = departure_date
   )
 
-  # Clean up the global variable when the app closes.
-  on.exit(rm(".r5rgui_args", envir = .GlobalEnv))
+  # Use the factory to create the final server function
+  server <- server_factory(app_args)
 
-  shiny::runApp(app_dir)
+  # Launch the application using shinyApp
+  shiny::shinyApp(ui = ui, server = server)
 }

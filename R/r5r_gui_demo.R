@@ -23,9 +23,9 @@
 #' # To run the demo application, simply call the function:
 #' r5r_gui_demo()
 #' }
+#'
 r5r_gui_demo <- function() {
-  # Check if the r5r package is installed, as it's essential for the demo
-  if (!requireNamespace("r5r", quietly = TRUE)) {
+  if (!check_r5r_available()) {
     stop(
       "The 'r5r' package is required to run this demo. Please install it first.",
       call. = FALSE
@@ -80,4 +80,11 @@ r5r_gui_demo <- function() {
     zoom = map_zoom,
     departure_date = departure_date
   )
+}
+
+# helper
+# Check if r5r is installed
+#' @noRd
+check_r5r_available <- function() {
+  requireNamespace("r5r", quietly = TRUE)
 }

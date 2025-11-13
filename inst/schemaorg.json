@@ -1,0 +1,40 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "type": "SoftwareSourceCode",
+      "author": {
+        "id": "https://orcid.org/0000-0001-6690-5345"
+      },
+      "codeRepository": "https://github.com/e-kotov/r5rgui",
+      "copyrightHolder": {
+        "id": "https://orcid.org/0000-0001-6690-5345",
+        "type": "Person",
+        "email": "kotov.egor@gmail.com",
+        "familyName": "Kotov",
+        "givenName": "Egor"
+      },
+      "description": "Interactively build and explore public transit routes with 'r5r' package via a graphical user interface in a 'shiny' app. The underlying routing methods are described in Pereira et al. (2021) <doi:10.32866/001c.21262>.",
+      "license": "https://spdx.org/licenses/MIT",
+      "name": "r5rgui: Graphical User Interface for 'r5r' Router",
+      "programmingLanguage": {
+        "type": "ComputerLanguage",
+        "name": "R",
+        "url": "https://r-project.org"
+      },
+      "runtimePlatform": "R version 4.5.2 (2025-10-31)",
+      "version": "0.1.0"
+    },
+    {
+      "type": "SoftwareSourceCode",
+      "author": {
+        "id": "https://orcid.org/0000-0001-6690-5345",
+        "type": "Person",
+        "email": "kotov.egor@gmail.com",
+        "familyName": "Kotov",
+        "givenName": "Egor"
+      },
+      "name": "Graphical user interface for 'r5r' router"
+    }
+  ]
+}
