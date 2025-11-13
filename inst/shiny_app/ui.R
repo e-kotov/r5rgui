@@ -15,9 +15,9 @@ ui <- shiny::fluidPage(
       style = "margin: 0;"
     )
   ),
-  tags$head(
+  shiny::tags$head(
     # --- CSS for notifications and button positioning ---
-    tags$style(shiny::HTML(
+    shiny::tags$style(shiny::HTML(
       "
       #shiny-notification-panel {
         top: 10px;
@@ -40,7 +40,8 @@ ui <- shiny::fluidPage(
       }
     "
     )),
-    tags$script(shiny::HTML(
+    shiny::tags$script(shiny::HTML(
+      # MODIFIED HERE
       "
     function initializeMapListeners(mapId) {
       const mapElement = document.getElementById(mapId);
@@ -126,7 +127,7 @@ ui <- shiny::fluidPage(
   shiny::sidebarLayout(
     shiny::sidebarPanel(
       width = 3,
-      h4("Trip Parameters"),
+      shiny::h4("Trip Parameters"),
       shiny::dateInput(
         "departure_date",
         "Departure Date",
@@ -159,7 +160,7 @@ ui <- shiny::fluidPage(
         max = 300
       ),
       shiny::hr(),
-      h4("Route Selection"),
+      shiny::h4("Route Selection"),
       shiny::helpText(
         "Left-click to set start. Right-click to set end. Drag markers or edit coordinates below."
       ),
@@ -181,7 +182,10 @@ ui <- shiny::fluidPage(
     ),
     shiny::mainPanel(
       width = 9,
-      tags$style(type = "text/css", "#map {height: calc(50vh) !important;}"),
+      shiny::tags$style(
+        type = "text/css",
+        "#map {height: calc(50vh) !important;}"
+      ),
       # --- Wrapper div for map and button ---
       shiny::div(
         class = "map-wrapper",
@@ -189,7 +193,7 @@ ui <- shiny::fluidPage(
         shiny::actionButton("copy_code", "Copy R Code")
       ),
       shiny::hr(),
-      h4("Itinerary Details"),
+      shiny::h4("Itinerary Details"),
       DT::dataTableOutput("itinerary_table")
     )
   )

@@ -1,11 +1,32 @@
 bibentry(
-  key      = "r5rgui",
-  bibtype  = "Manual",
-  title    = "Interactively build and explore public transit routes with
-    'r5r' package via a Shiny app.",
-  author   = person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre", "cph"),
-           comment = c(ORCID = "0000-0001-6690-5345")),
-  year     = "2025",
-  url      = "https://github.com/e-kotov/r5rgui",
-  doi      = "10.32614/CRAN.package.r5rgui"
+  header = "To cite the r5rgui package in publications, please use:",
+  key = "r5rgui",
+  bibtype = "Manual",
+  title = "Graphical user interface for 'r5r' router",
+  author = person(
+    "Egor",
+    "Kotov",
+    ,
+    "kotov.egor@gmail.com",
+    role = c("aut", "cre", "cph"),
+    comment = c(ORCID = "0000-0001-6690-5345")
+  ),
+  year = "2025",
+  url = "https://github.com/e-kotov/r5rgui"
+)
+
+
+bibentry(
+  header = paste(
+    "\nThis package is a graphical user interface for 'r5r'.",
+    "To cite the underlying routing methods, please use:"
+  ),
+  bibtype = "Article",
+  title = "r5r: Rapid Realistic Routing on Multimodal Transport Networks with R5 in R",
+  author = "Rafael H. M. Pereira [aut, cre], Marcus Saraiva [aut], Daniel Herszenhut [aut], Carlos Kaue Vieira Braga [aut], Matthew Wigginton Conway [aut]",
+  journal = "Findings",
+  year = "2021",
+  doi = "10.32866/001c.21262",
+  url = "https://doi.org/10.32866/001c.21262",
+  textVersion = "Pereira, R. H. M., Saraiva, M., Herszenhut, D., Braga, C. K. V., & Conway, M. W. (2021). r5r: Rapid Realistic Routing on Multimodal Transport Networks with R5 in R. Findings, 21262. https://doi.org/10.32866/001c.21262"
 )

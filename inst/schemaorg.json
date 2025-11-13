@@ -14,9 +14,9 @@
         "familyName": "Kotov",
         "givenName": "Egor"
       },
-      "description": "Interactively build and explore public transit routes with 'r5r' package via a Shiny app.",
+      "description": "Interactively build and explore public transit routes with 'r5r' package via a graphical user interface in a 'shiny' app. The underlying routing methods are described in Pereira et al. (2021) <doi:10.32866/001c.21262>.",
       "license": "https://spdx.org/licenses/MIT",
-      "name": "r5rgui: Simple Shiny GUI for 'r5r'",
+      "name": "r5rgui: Graphical User Interface for 'r5r' Router",
       "programmingLanguage": {
         "type": "ComputerLanguage",
         "name": "R",
@@ -26,7 +26,6 @@
       "version": "0.1.0"
     },
     {
-      "id": "https://doi.org/10.32614/CRAN.package.r5rgui",
       "type": "SoftwareSourceCode",
       "author": {
         "id": "https://orcid.org/0000-0001-6690-5345",
@@ -35,7 +34,7 @@
         "familyName": "Kotov",
         "givenName": "Egor"
       },
-      "name": "Interactively build and explore public transit routes with\n    'r5r' package via a Shiny app."
+      "name": "Graphical user interface for 'r5r' router"
     }
   ]
 }

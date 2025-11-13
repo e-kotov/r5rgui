@@ -8,8 +8,7 @@
 
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-[![CRAN
-status](https://www.r-pkg.org/badges/version/r5rgui)](https://CRAN.R-project.org/package=r5rgui)
+<!-- [![CRAN status](https://www.r-pkg.org/badges/version/r5rgui)](https://CRAN.R-project.org/package=r5rgui) -->
 [![R-CMD-check](https://github.com/e-kotov/r5rgui/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/e-kotov/r5rgui/actions/workflows/R-CMD-check.yaml)
 [![Codecov test
 coverage](https://codecov.io/gh/e-kotov/r5rgui/graph/badge.svg)](https://app.codecov.io/gh/e-kotov/r5rgui)

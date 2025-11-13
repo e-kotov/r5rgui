@@ -7,11 +7,11 @@ cff-version: 1.2.0
 message: 'To cite package "r5rgui" in publications use:'
 type: software
 license: MIT
-title: 'r5rgui: Simple Shiny GUI for ''r5r'''
+title: 'r5rgui: Graphical User Interface for ''r5r'' Router'
 version: 0.1.0
-doi: 10.32614/CRAN.package.r5rgui
 abstract: Interactively build and explore public transit routes with 'r5r' package
-  via a Shiny app.
+  via a graphical user interface in a 'shiny' app. The underlying routing methods
+  are described in Pereira et al. (2021) <https://doi.org/10.32866/001c.21262>.
 authors:
 - family-names: Kotov
   given-names: Egor
@@ -19,8 +19,7 @@ authors:
   orcid: https://orcid.org/0000-0001-6690-5345
 preferred-citation:
   type: manual
-  title: Interactively build and explore public transit routes with 'r5r' package
-    via a Shiny app.
+  title: Graphical user interface for 'r5r' router
   authors:
   - family-names: Kotov
     given-names: Egor
@@ -28,7 +27,6 @@ preferred-citation:
     orcid: https://orcid.org/0000-0001-6690-5345
   year: '2025'
   url: https://github.com/e-kotov/r5rgui
-  doi: 10.32614/CRAN.package.r5rgui
 repository-code: https://github.com/e-kotov/r5rgui
 url: https://www.ekotov.pro/r5rgui/
 contact:
@@ -37,6 +35,24 @@ contact:
   email: kotov.egor@gmail.com
   orcid: https://orcid.org/0000-0001-6690-5345
 references:
+- type: article
+  title: 'r5r: Rapid Realistic Routing on Multimodal Transport Networks with R5 in
+    R'
+  authors:
+  - family-names: Pereira
+    given-names: Rafael H. M.
+  - family-names: Saraiva
+    given-names: Marcus
+  - family-names: Herszenhut
+    given-names: Daniel
+  - family-names: Braga
+    given-names: Carlos Kaue Vieira
+  - family-names: Conway
+    given-names: Matthew Wigginton
+  journal: Findings
+  year: '2021'
+  doi: 10.32866/001c.21262
+  url: https://doi.org/10.32866/001c.21262
 - type: software
   title: DT
   abstract: 'DT: A Wrapper of the JavaScript Library ''DataTables'''
@@ -184,6 +200,21 @@ references:
     orcid: https://orcid.org/0000-0003-4474-2498
   year: '2025'
   doi: 10.32614/CRAN.package.quarto
+- type: software
+  title: rlang
+  abstract: 'rlang: Functions for Base Types and Core R and ''Tidyverse'' Features'
+  notes: Suggests
+  url: https://rlang.r-lib.org
+  repository: https://CRAN.R-project.org/package=rlang
+  authors:
+  - family-names: Henry
+    given-names: Lionel
+    email: lionel@posit.co
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@posit.co
+  year: '2025'
+  doi: 10.32614/CRAN.package.rlang
 - type: software
   title: shinytest2
   abstract: 'shinytest2: Testing for Shiny Applications'
