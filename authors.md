@@ -8,15 +8,28 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/e-kotov/r5rgui/blob/main/DESCRIPTION)
+[`inst/CITATION`](https://github.com/e-kotov/r5rgui/blob/main/inst/CITATION)
 
-Kotov E (2025). *r5rgui: Simple Shiny GUI for r5r*. R package version
-0.1.0, <https://github.com/e-kotov/r5rgui>.
+Kotov E (2025). *Graphical user interface for 'r5r' router*.
+<https://github.com/e-kotov/r5rgui>.
 
-    @Manual{,
-      title = {r5rgui: Simple Shiny GUI for r5r},
+    @Manual{r5rgui,
+      title = {Graphical user interface for 'r5r' router},
       author = {Egor Kotov},
       year = {2025},
-      note = {R package version 0.1.0},
       url = {https://github.com/e-kotov/r5rgui},
+    }
+
+Pereira, R. H. M., Saraiva, M., Herszenhut, D., Braga, C. K. V., &
+Conway, M. W. (2021). r5r: Rapid Realistic Routing on Multimodal
+Transport Networks with R5 in R. Findings, 21262.
+https://doi.org/10.32866/001c.21262
+
+    @Article{,
+      title = {r5r: Rapid Realistic Routing on Multimodal Transport Networks with R5 in R},
+      author = {Rafael H. M. Pereira and Marcus Saraiva and Daniel Herszenhut and Carlos Kaue Vieira Braga and Matthew Wigginton Conway},
+      journal = {Findings},
+      year = {2021},
+      doi = {10.32866/001c.21262},
+      url = {https://doi.org/10.32866/001c.21262},
     }

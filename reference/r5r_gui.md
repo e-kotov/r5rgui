@@ -45,7 +45,7 @@ This function does not return a value; it launches a Shiny application.
 ``` r
 if (FALSE) { # \dontrun{
 # First, build the r5r network
-options(java.parameters = "-Xmx4G")
+library(r5r)
 data_path <- system.file("extdata/poa", package = "r5r")
 r5r_network <- setup_r5(data_path = data_path)
 
@@ -53,7 +53,7 @@ r5r_network <- setup_r5(data_path = data_path)
 # The map will be automatically centered and zoomed to the network's extent
 r5r_gui(r5r_network)
 
-# Launch with a specific departure date
+# Launch with a specific departure date with auto-zoom and center
 r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 
 # Manually define map center and zoom
