@@ -30,7 +30,7 @@ ui <- shiny::fluidPage(
     shiny::tags$style(shiny::HTML(
       "
       #shiny-notification-panel {
-        top: 10px;
+        top: 70px;
         right: 10px;
         left: auto;
         bottom: auto;
