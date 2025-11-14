@@ -22,6 +22,11 @@ function(app_args) {
     )
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
+    copy_code_message <- shiny::reactiveVal(NULL)
+
+    output$copy_code_message_ui <- shiny::renderUI({
+      copy_code_message()
+    })
 
     output$map <- mapgl::renderMaplibre({
       mapgl::maplibre(
@@ -162,7 +167,38 @@ function(app_args) {
       proxy <- mapgl::maplibre_proxy("map")
       mapgl::clear_layer(proxy, "route_layer")
       mapgl::clear_legend(proxy)
+      copy_code_message(NULL)
     })
+
+    # --- OBSERVERS TO CLEAR COPY CODE MESSAGE ---
+    shiny::observeEvent(
+      input$map_click,
+      {
+        copy_code_message(NULL)
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$js_right_click,
+      {
+        copy_code_message(NULL)
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$start_coords_input,
+      {
+        copy_code_message(NULL)
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$end_coords_input,
+      {
+        copy_code_message(NULL)
+      },
+      ignoreInit = TRUE
+    )
 
     # --- ROUTE CALCULATION (unchanged) ---
     route_data <- shiny::eventReactive(
@@ -353,13 +389,17 @@ function(app_args) {
     # The code checks the installed r5r version and adjusts the generated code accordingly, ensuring that the copied code will work regardless of which r5r version the user has installed.
     shiny::observeEvent(input$copy_code, {
       if (is.null(locations$start) || is.null(locations$end)) {
-        shiny::showNotification(
-          "Please set start and end points on the map first.",
-          type = "warning",
-          duration = 5
+        copy_code_message(
+          shiny::div(
+            style = "background-color: #ea8436ff; color: white; padding: 5px 10px; border-radius: 5px; margin-bottom: 5px;",
+            "Please set start and end points on the map first."
+          )
         )
         return()
       }
+
+      # If we have start/end points, clear any existing message
+      copy_code_message(NULL)
 
       departure_datetime_str <- paste(
         input$departure_date,

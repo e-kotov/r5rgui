@@ -42,12 +42,13 @@ ui <- shiny::fluidPage(
       }
       
       /* Style for the button placed on the map */
-      .map-wrapper .btn {
+      /* This is now handled by an inline style on the container div */
+      /* .map-wrapper .btn {
         position: absolute;
         bottom: 10px;
         left: 10px;
         z-index: 10; /* Ensures the button is on top of the map */
-      }
+      } */
     "
     )),
     shiny::tags$script(shiny::HTML(
@@ -200,7 +201,11 @@ ui <- shiny::fluidPage(
       shiny::div(
         class = "map-wrapper",
         mapgl::maplibreOutput("map"),
-        shiny::actionButton("copy_code", "Copy R Code")
+        shiny::div(
+          style = "position: absolute; bottom: 10px; left: 10px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;",
+          shiny::uiOutput("copy_code_message_ui"),
+          shiny::actionButton("copy_code", "Copy R Code")
+        )
       ),
       shiny::hr(),
       shiny::h4("Itinerary Details"),
