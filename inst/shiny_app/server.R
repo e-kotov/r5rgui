@@ -433,5 +433,10 @@ function(app_args) {
         footer = shiny::modalButton("Dismiss")
       ))
     })
+
+    # --- OBSERVER FOR QUIT BUTTON ---
+    shiny::observeEvent(input$quit_app, {
+      shiny::stopApp()
+    })
   }
 }

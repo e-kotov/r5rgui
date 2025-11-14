@@ -1,18 +1,28 @@
 # --- UI DEFINITION (With notification styling) ---
 ui <- shiny::fluidPage(
-  # Replace titlePanel with a div for custom layout with logo
+  # Wrap the header in a div with relative positioning
   shiny::div(
-    style = "display: flex; align-items: center; padding: 10px 0;",
-    shiny::img(
-      src = "r5rgui_assets/logo.png",
-      height = "50px",
-      style = "margin-right: 15px;"
-    ),
-    shiny::h2(
-      shiny::HTML(
-        "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+    style = "display: flex; justify-content: space-between; align-items: center; padding: 10px 0;",
+    # Flex container for logo and title
+    shiny::div(
+      style = "display: flex; align-items: center;",
+      shiny::img(
+        src = "r5rgui_assets/logo.png",
+        height = "50px",
+        style = "margin-right: 15px;"
       ),
-      style = "margin: 0;"
+      shiny::h2(
+        shiny::HTML(
+          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+        ),
+        style = "margin: 0;"
+      )
+    ),
+    # Quit button is now a flex item and will be vertically centered
+    shiny::actionButton(
+      "quit_app",
+      "Quit",
+      style = "background-color: #0e8bb2; color: white; border-width: 0px;"
     )
   ),
   shiny::tags$head(
