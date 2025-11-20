@@ -25,9 +25,9 @@ Please note that \code{r5r} may need to download the sample data on first use,
 which requires an internet connection.
 }
 \examples{
-\dontrun{
-# To run the demo application, simply call the function:
-r5r_gui_demo()
+if (interactive()) {
+  # To run the demo application, simply call the function:
+  r5r_gui_demo()
 }
 
 }

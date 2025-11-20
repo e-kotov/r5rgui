@@ -23,22 +23,25 @@ This function launches a Shiny application that provides a graphical
 user interface for the 'r5r' package, allowing for interactive transit routing.
 }
 \examples{
-\dontrun{
-# First, build the r5r network
-library(r5r)
-data_path <- system.file("extdata/poa", package = "r5r")
-r5r_network <- setup_r5(data_path = data_path)
+if (interactive()) {
+  # First, build the r5r network
+  library(r5r)
 
-# Launch the application without specifying center and zoom
-# The map will be automatically centered and zoomed to the network's extent
-r5r_gui(r5r_network)
+  # Note: This requires a valid r5r network.
+  # Using the sample data included in the r5r package:
+  data_path <- system.file("extdata/poa", package = "r5r")
+  r5r_network <- setup_r5(data_path = data_path)
 
-# Launch with a specific departure date with auto-zoom and center
-r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
+  # Launch the application without specifying center and zoom
+  # The map will be automatically centered and zoomed to the network's extent
+  r5r_gui(r5r_network)
 
-# Manually define map center and zoom
-map_center <- c(-51.22, -30.05)
-map_zoom <- 11
-r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
+  # Launch with a specific departure date with auto-zoom and center
+  r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
+
+  # Manually define map center and zoom
+  map_center <- c(-51.22, -30.05)
+  map_zoom <- 11
+  r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
 }
 }
