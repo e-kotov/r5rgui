@@ -19,9 +19,9 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' # To run the demo application, simply call the function:
-#' r5r_gui_demo()
+#' if (interactive()) {
+#'   # To run the demo application, simply call the function:
+#'   r5r_gui_demo()
 #' }
 #'
 r5r_gui_demo <- function() {
