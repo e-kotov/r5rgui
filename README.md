@@ -8,33 +8,59 @@
 
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-<!-- [![CRAN status](https://www.r-pkg.org/badges/version/r5rgui)](https://CRAN.R-project.org/package=r5rgui) -->
+[![CRAN
+status](https://www.r-pkg.org/badges/version/r5rgui)](https://CRAN.R-project.org/package=r5rgui)
+<a href="https://CRAN.R-project.org/package=r5rgui" target="_blank"><img
+src="https://cranlogs.r-pkg.org/badges/grand-total/r5rgui?color=blue"
+alt="CRAN/METACRAN Total downloads" /></a>
+<a href="https://CRAN.R-project.org/package=r5rgui" target="_blank"><img
+src="https://cranlogs.r-pkg.org/badges/r5rgui?color=blue"
+alt="CRAN/METACRAN Downloads per month" /></a> [![r5rgui status
+badge](https://e-kotov.r-universe.dev/r5rgui/badges/version)](https://e-kotov.r-universe.dev/r5rgui)
 [![R-CMD-check](https://github.com/e-kotov/r5rgui/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/e-kotov/r5rgui/actions/workflows/R-CMD-check.yaml)
 [![Codecov test
 coverage](https://codecov.io/gh/e-kotov/r5rgui/graph/badge.svg)](https://app.codecov.io/gh/e-kotov/r5rgui)
+
+[![DOI](https://zenodo.org/badge/DOI/10.32614/CRAN.package.r5rgui.svg)](https://doi.org/10.32614/CRAN.package.r5rgui)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17709914.svg)](https://doi.org/10.5281/zenodo.17709914)
 <!-- badges: end -->
 
 The goal of `{r5rgui}` is to allow the user to interactively explore
-routes calcualted with `{r5r}` (https://github.com/ipeaGIT/r5r/) package
-in a `Shiny` app, e.g. for troubleshooting routing problems.
+routes calcualted with [`{r5r}`](https://github.com/ipeaGIT/r5r/)
+package in a `Shiny` app, e.g. for troubleshooting routing problems.
 
 ## Installation
 
-You can install the development version of r5rgui from
+Get it from CRAN:
+
+``` r
+install.packages("r5rgui")
+```
+
+Or get the latest development version from `R-Universe`:
+
+``` r
+install.packages(
+  'r5rgui',
+  repos = c('https://e-kotov.r-universe.dev', 'https://cloud.r-project.org')
+)
+```
+
+You can also install the development version of `{r5rgui}` from
 [GitHub](https://github.com/e-kotov/r5rgui) with:
 
 ``` r
 # install.packages("pak")
 pak::pak("e-kotov/r5rgui")
+```
 
-# setup Java as you would for r5r package
-# install.packages('rJavaEnv')
+Also setup Java as as you would for r5r package:
 
-# check version of Java currently installed (if any) 
-rJavaEnv::java_check_version_rjava()
+``` r
+# install.packages('rJavaEnv') # if not installed yet
 
-# install Java 21
-rJavaEnv::java_quick_install(version = 21)
+# install and use Java 21 in current session
+rJavaEnv::use_java(21)
 ```
 
 ## Example

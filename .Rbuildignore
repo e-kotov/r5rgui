@@ -15,3 +15,5 @@
 ^codemeta\.json$
 ^man\/figures\/logo\.png$
 ^CRAN-SUBMISSION$
+^[.]?air[.]toml$
+^\.vscode$

@@ -9,6 +9,10 @@ type: software
 license: MIT
 title: 'r5rgui: Graphical User Interface for ''r5r'' Router'
 version: 0.1.0
+doi: 10.32614/CRAN.package.r5rgui
+identifiers:
+- type: doi
+  value: 10.32614/CRAN.package.r5rgui
 abstract: Interactively build and explore public transit routes with 'r5r' package
   via a graphical user interface in a 'shiny' app. The underlying routing methods
   are described in Pereira et al. (2021) <https://doi.org/10.32866/001c.21262>.
@@ -25,8 +29,10 @@ preferred-citation:
     given-names: Egor
     email: kotov.egor@gmail.com
     orcid: https://orcid.org/0000-0001-6690-5345
+  doi: 10.32614/CRAN.package.r5rgui
   year: '2025'
   url: https://github.com/e-kotov/r5rgui
+repository: https://CRAN.R-project.org/package=r5rgui
 repository-code: https://github.com/e-kotov/r5rgui
 url: https://www.ekotov.pro/r5rgui/
 contact:

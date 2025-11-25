@@ -4,7 +4,7 @@
   "identifier": "r5rgui",
   "description": "Interactively build and explore public transit routes with 'r5r' package via a graphical user interface in a 'shiny' app. The underlying routing methods are described in Pereira et al. (2021) <doi:10.32866/001c.21262>.",
   "name": "r5rgui: Graphical User Interface for 'r5r' Router",
-  "relatedLink": "https://www.ekotov.pro/r5rgui/",
+  "relatedLink": ["https://www.ekotov.pro/r5rgui/", "https://CRAN.R-project.org/package=r5rgui"],
   "codeRepository": "https://github.com/e-kotov/r5rgui",
   "issueTracker": "https://github.com/e-kotov/r5rgui/issues",
   "license": "https://spdx.org/licenses/MIT",
@@ -15,6 +15,12 @@
     "url": "https://r-project.org"
   },
   "runtimePlatform": "R version 4.5.2 (2025-10-31)",
+  "provider": {
+    "@id": "https://cran.r-project.org",
+    "@type": "Organization",
+    "name": "Comprehensive R Archive Network (CRAN)",
+    "url": "https://cran.r-project.org"
+  },
   "author": [
     {
       "@type": "Person",
@@ -168,7 +174,7 @@
     },
     "SystemRequirements": null
   },
-  "fileSize": "351726.695KB",
+  "fileSize": "351730.048KB",
   "citation": [
     {
       "@type": "SoftwareSourceCode",
@@ -183,7 +189,10 @@
         }
       ],
       "name": "Graphical user interface for 'r5r' router",
-      "url": "https://github.com/e-kotov/r5rgui"
+      "identifier": "10.32614/CRAN.package.r5rgui",
+      "url": "https://github.com/e-kotov/r5rgui",
+      "@id": "https://doi.org/10.32614/CRAN.package.r5rgui",
+      "sameAs": "https://doi.org/10.32614/CRAN.package.r5rgui"
     },
     {
       "@type": "ScholarlyArticle",

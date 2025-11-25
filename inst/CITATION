@@ -11,6 +11,7 @@ bibentry(
     role = c("aut", "cre", "cph"),
     comment = c(ORCID = "0000-0001-6690-5345")
   ),
+  doi = "10.32614/CRAN.package.r5rgui",
   year = "2025",
   url = "https://github.com/e-kotov/r5rgui"
 )
