@@ -1,18 +1,28 @@
 # --- UI DEFINITION (With notification styling) ---
 ui <- shiny::fluidPage(
-  # Replace titlePanel with a div for custom layout with logo
+  # Wrap the header in a div with relative positioning
   shiny::div(
-    style = "display: flex; align-items: center; padding: 10px 0;",
-    shiny::img(
-      src = "r5rgui_assets/logo.png",
-      height = "50px",
-      style = "margin-right: 15px;"
-    ),
-    shiny::h2(
-      shiny::HTML(
-        "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+    style = "display: flex; justify-content: space-between; align-items: center; padding: 10px 0;",
+    # Flex container for logo and title
+    shiny::div(
+      style = "display: flex; align-items: center;",
+      shiny::img(
+        src = "r5rgui_assets/logo.png",
+        height = "50px",
+        style = "margin-right: 15px;"
       ),
-      style = "margin: 0;"
+      shiny::h2(
+        shiny::HTML(
+          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+        ),
+        style = "margin: 0;"
+      )
+    ),
+    # Quit button is now a flex item and will be vertically centered
+    shiny::actionButton(
+      "quit_app",
+      "Quit",
+      style = "background-color: #0e8bb2; color: white; border-width: 0px;"
     )
   ),
   shiny::tags$head(
@@ -20,7 +30,7 @@ ui <- shiny::fluidPage(
     shiny::tags$style(shiny::HTML(
       "
       #shiny-notification-panel {
-        top: 10px;
+        top: 70px;
         right: 10px;
         left: auto;
         bottom: auto;
@@ -32,12 +42,13 @@ ui <- shiny::fluidPage(
       }
       
       /* Style for the button placed on the map */
-      .map-wrapper .btn {
+      /* This is now handled by an inline style on the container div */
+      /* .map-wrapper .btn {
         position: absolute;
         bottom: 10px;
         left: 10px;
         z-index: 10; /* Ensures the button is on top of the map */
-      }
+      } */
     "
     )),
     shiny::tags$script(shiny::HTML(
@@ -190,7 +201,11 @@ ui <- shiny::fluidPage(
       shiny::div(
         class = "map-wrapper",
         mapgl::maplibreOutput("map"),
-        shiny::actionButton("copy_code", "Copy R Code")
+        shiny::div(
+          style = "position: absolute; bottom: 10px; left: 10px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;",
+          shiny::uiOutput("copy_code_message_ui"),
+          shiny::actionButton("copy_code", "Copy R Code")
+        )
       ),
       shiny::hr(),
       shiny::h4("Itinerary Details"),
