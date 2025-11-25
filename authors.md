@@ -8,14 +8,16 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/e-kotov/r5rgui/blob/v0.1.0/inst/CITATION)
+[`inst/CITATION`](https://github.com/e-kotov/r5rgui/blob/main/inst/CITATION)
 
 Kotov E (2025). *Graphical user interface for 'r5r' router*.
+[doi:10.32614/CRAN.package.r5rgui](https://doi.org/10.32614/CRAN.package.r5rgui),
 <https://github.com/e-kotov/r5rgui>.
 
     @Manual{r5rgui,
       title = {Graphical user interface for 'r5r' router},
       author = {Egor Kotov},
+      doi = {10.32614/CRAN.package.r5rgui},
       year = {2025},
       url = {https://github.com/e-kotov/r5rgui},
     }
