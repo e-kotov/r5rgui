@@ -517,12 +517,12 @@ ui <- shiny::fluidPage(
           shiny::tabsetPanel(
             id = "compare_tabs_tables",
             shiny::tabPanel(
-              "Itinerary 1",
+              "Route 1",
               shiny::div(style = "padding-top:10px;"),
               DT::dataTableOutput("itinerary_table_1")
             ),
             shiny::tabPanel(
-              "Itinerary 2",
+              "Route 2",
               shiny::div(style = "padding-top:10px;"),
               DT::dataTableOutput("itinerary_table_2")
             )
