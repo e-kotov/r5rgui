@@ -119,6 +119,64 @@ ui <- shiny::fluidPage(
         margin-top: 10px;
         border-top: 1px solid #eee;
       }
+
+      /* --- Map Control Stacking (Bottom-Right) --- */
+      
+      /* Target the container to ensure it doesn't stretch items */
+      .maplibregl-ctrl-bottom-right {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-end !important;
+        pointer-events: none;
+      }
+      
+      .maplibregl-ctrl-bottom-right > * {
+        pointer-events: auto;
+      }
+
+      /* Lift navigation and fullscreen controls together */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+        margin-bottom: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+      }
+
+      /* First group (Navigation) needs top corners */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:nth-child(1) {
+        border-top-left-radius: 4px !important;
+        border-top-right-radius: 4px !important;
+      }
+
+      /* Second group (Fullscreen) needs bottom corners and large margin to clear selector + attribution */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:nth-child(2) {
+        border-bottom-left-radius: 4px !important;
+        border-bottom-right-radius: 4px !important;
+        margin-bottom: 100px !important; 
+      }
+
+      /* Attribution stays at the very bottom - push it slightly off the edges */
+      .maplibregl-ctrl-attrib {
+        background: rgba(255, 255, 255, 0.7) !important;
+        margin: 5px !important;
+        border-radius: 4px !important;
+      }
+
+      /* Styles for the floating basemap selector */
+      .basemap-panel {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 2px 5px !important;
+        border-radius: 4px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        border: 1px solid #ccc;
+      }
+      
+      .basemap-panel .form-group {
+        margin-bottom: 0 !important; /* Kill the 'fat lip' */
+      }
+      
+      .basemap-panel .selectize-control {
+        margin-bottom: 0 !important;
+      }
     "
     )),
     shiny::tags$script(shiny::HTML(
@@ -127,13 +185,51 @@ ui <- shiny::fluidPage(
       $('#compare_mode').prop('checked', value).change();
     });
 
-    // --- Resizer Logic ---
+    // --- Sidebar Persistence & Resizer Logic ---
     $(document).on('shiny:connected', () => {
-        // Event delegation for resizers (handles dynamic elements)
+        const loadWidths = () => {
+            const leftWidth = localStorage.getItem('r5rgui-left-width');
+            const rightWidth = localStorage.getItem('r5rgui-right-width');
+            
+            if (leftWidth) {
+                const sidebar = document.querySelector('.sidebar-left');
+                if (sidebar) {
+                    sidebar.style.flexBasis = leftWidth + 'px';
+                    sidebar.style.width = leftWidth + 'px';
+                }
+            }
+            if (rightWidth) {
+                const sidebar = document.querySelector('.sidebar-right');
+                if (sidebar) {
+                    sidebar.style.flexBasis = rightWidth + 'px';
+                    sidebar.style.width = rightWidth + 'px';
+                }
+            }
+            window.dispatchEvent(new Event('resize'));
+        };
+
+        // MutationObserver to catch when the right sidebar appears
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    const rightSidebar = document.querySelector('.sidebar-right');
+                    if (rightSidebar) {
+                        const savedWidth = localStorage.getItem('r5rgui-right-width');
+                        if (savedWidth) {
+                            rightSidebar.style.flexBasis = savedWidth + 'px';
+                            rightSidebar.style.width = savedWidth + 'px';
+                        }
+                    }
+                }
+            });
+        });
+        observer.observe(document.querySelector('.main-layout'), { childList: true, subtree: true });
+
+        loadWidths();
+
         document.addEventListener('mousedown', function(e) {
             if (e.target.classList.contains('resizer')) {
                 const isLeft = e.target.id === 'resizer-left';
-                // Select specific sidebar adjacent to the resizer
                 const sidebar = isLeft 
                     ? document.querySelector('.sidebar-left') 
                     : document.querySelector('.sidebar-right');
@@ -141,21 +237,14 @@ ui <- shiny::fluidPage(
                 if (!sidebar) return;
 
                 const startX = e.clientX;
-                const startWidth = parseInt(window.getComputedStyle(sidebar).width, 10);
+                const startWidth = sidebar.offsetWidth;
                 
                 const moveHandler = (e) => {
                     const dx = e.clientX - startX;
-                    // For left sidebar: moving right (positive dx) increases width
-                    // For right sidebar: moving right (positive dx) decreases width (since it's on the right)
-                    // Wait, structure is: ResizerRight | SidebarRight. 
-                    // Dragging ResizerRight to the right pushes the border right, which shrinks the sidebar.
-                    // So: NewWidth = StartWidth - dx
-                    
                     const newWidth = isLeft ? startWidth + dx : startWidth - dx;
-                    
                     if (newWidth >= 150 && newWidth <= 600) {
                         sidebar.style.flexBasis = newWidth + 'px';
-                        // Force map resize if needed (MapLibre usually handles container resize, but triggering event is safe)
+                        sidebar.style.width = newWidth + 'px';
                         window.dispatchEvent(new Event('resize')); 
                     }
                 };
@@ -163,6 +252,8 @@ ui <- shiny::fluidPage(
                 const upHandler = () => {
                     document.removeEventListener('mousemove', moveHandler);
                     document.removeEventListener('mouseup', upHandler);
+                    const finalWidth = sidebar.offsetWidth;
+                    localStorage.setItem(isLeft ? 'r5rgui-left-width' : 'r5rgui-right-width', finalWidth);
                     e.target.classList.remove('resizing');
                     document.body.style.removeProperty('user-select');
                     document.body.style.removeProperty('cursor');
@@ -173,7 +264,7 @@ ui <- shiny::fluidPage(
                 e.target.classList.add('resizing');
                 document.body.style.userSelect = 'none';
                 document.body.style.cursor = 'col-resize';
-                e.preventDefault(); // Prevent text selection start
+                e.preventDefault();
             }
         });
     });
@@ -243,6 +334,50 @@ ui <- shiny::fluidPage(
                   endMarker.remove();
                   endMarker = null;
               }
+          });
+          
+          Shiny.addCustomMessageHandler('setPersistentStyle', function(message) {
+            const mapElement = document.getElementById('map');
+            if (!mapElement || !mapElement.map) return;
+            const map = mapElement.map;
+            
+            const newStyleUrl = message.styleUrl;
+            
+            fetch(newStyleUrl)
+              .then(response => response.json())
+              .then(newStyle => {
+                const currentStyle = map.getStyle();
+                
+                // Identify layers to preserve (specifically route layers)
+                const layersToPreserve = currentStyle.layers.filter(l => 
+                  l.id && (l.id.startsWith('route') || l.id === 'route_layer_1' || l.id === 'route_layer_2')
+                );
+                
+                if (layersToPreserve.length === 0) {
+                   map.setStyle(newStyle, { diff: true });
+                   return;
+                }
+
+                // Identify sources used by these layers
+                const sourcesToPreserve = {};
+                layersToPreserve.forEach(l => {
+                  if (l.source && currentStyle.sources[l.source]) {
+                    sourcesToPreserve[l.source] = currentStyle.sources[l.source];
+                  }
+                });
+                
+                // Merge sources and layers
+                newStyle.sources = Object.assign({}, newStyle.sources, sourcesToPreserve);
+                newStyle.layers = newStyle.layers.concat(layersToPreserve);
+                
+                // Apply the new style with diff=true
+                map.setStyle(newStyle, { diff: true });
+                
+              })
+              .catch(err => {
+                console.error('Error fetching/setting persistent style:', err);
+                map.setStyle(newStyleUrl, { diff: true });
+              });
           });
 
           obs.disconnect();
@@ -354,6 +489,15 @@ ui <- shiny::fluidPage(
           # Exec time is now in legends, but keep message and copy code here
           shiny::uiOutput("copy_code_message_ui"),
           shiny::actionButton("copy_code", "Copy R Code")
+        ),
+        # Basemap Selector
+        shiny::absolutePanel(
+          bottom = 40,
+          right = 10,
+          width = "auto",
+          draggable = FALSE,
+          style = "z-index: 500;",
+          shiny::div(class = "basemap-panel", shiny::uiOutput("basemap_ui"))
         )
       ),
       shiny::div(
