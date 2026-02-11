@@ -50,19 +50,6 @@ function(app_args) {
       session$sendCustomMessage("updateCompareMode", compare_mode())
     })
 
-    # Sync mode inputs when switching
-    shiny::observeEvent(compare_mode(), {
-      if (compare_mode()) {
-        # Sync from Normal (which uses _1_internal when in normal mode) to Route 2
-        shiny::updateSelectInput(session, "mode_2_internal", selected = input$mode_1_internal)
-        shiny::updateDateInput(session, "departure_date_2_internal", value = input$departure_date_1_internal)
-        shiny::updateTextInput(session, "departure_time_2_internal", value = input$departure_time_1_internal)
-        shiny::updateNumericInput(session, "time_window_2_internal", value = input$time_window_1_internal)
-        shiny::updateNumericInput(session, "max_walk_time_2_internal", value = input$max_walk_time_1_internal)
-        shiny::updateNumericInput(session, "max_trip_duration_2_internal", value = input$max_trip_duration_1_internal)
-      }
-    })
-
     output$copy_code_message_ui <- shiny::renderUI({
       copy_code_message()
     })
