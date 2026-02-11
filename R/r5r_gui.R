@@ -105,7 +105,7 @@ r5r_gui <- function(
 
   # if center or zoom are not provided, calculate them from the network bbox
   if (is.null(center) || is.null(zoom)) {
-    if (utils::packageVersion("r5r") >= "2.3.0999") {
+    if (utils::packageVersion("r5r") >= "2.3.0.999") {
       street_network_bbox_fun <- get("street_network_bbox", asNamespace("r5r"))
       bbox <- street_network_bbox_fun(primary_network, output = "vector")
     } else {
