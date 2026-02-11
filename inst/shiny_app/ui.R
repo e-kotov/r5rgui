@@ -177,6 +177,7 @@ ui <- shiny::fluidPage(
     shiny::div(
       class = "sidebar-column",
       shiny::h4(shiny::uiOutput("left_sidebar_title", inline = TRUE)),
+      shiny::uiOutput("network_selector_1"),
       shiny::selectInput(
         "mode_1_internal", # We sync this with 'mode' or 'mode_1'
         "Transport Modes",
@@ -238,6 +239,7 @@ ui <- shiny::fluidPage(
       shiny::div(
         class = "sidebar-column",
         shiny::h4("Route 2 Settings"),
+        shiny::uiOutput("network_selector_2"),
         shiny::selectInput(
           "mode_2_internal",
           "Transport Modes",

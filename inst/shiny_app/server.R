@@ -19,6 +19,36 @@ function(app_args) {
     shiny::updateDateInput(session, "departure_date_2_internal", value = app_args$departure_date)
     shiny::updateSelectInput(session, "mode_1_internal", selected = app_args$mode)
 
+    # Handle Network List Logic
+    networks <- app_args$r5r_network
+    network_names <- names(networks)
+    has_multiple_networks <- length(networks) > 1
+
+    # Render Network Selectors
+    output$network_selector_1 <- shiny::renderUI({
+      if (has_multiple_networks) {
+        shiny::div(
+          style = "margin-bottom: 10px;",
+          shiny::selectInput("network_1_internal", "Network", choices = network_names, selected = network_names[1])
+        )
+      } else {
+        NULL
+      }
+    })
+
+    output$network_selector_2 <- shiny::renderUI({
+      if (has_multiple_networks) {
+        # Default to 2nd network if available, else 1st
+        default_net <- if (length(network_names) >= 2) network_names[2] else network_names[1]
+        shiny::div(
+          style = "margin-bottom: 10px;",
+          shiny::selectInput("network_2_internal", "Network", choices = network_names, selected = default_net)
+        )
+      } else {
+        NULL
+      }
+    })
+
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
     r5r_exec_time_1 <- shiny::reactiveVal(NULL)
@@ -241,12 +271,14 @@ function(app_args) {
         input$time_window_1_internal,
         input$max_walk_time_1_internal,
         input$max_trip_duration_1_internal,
+        input$network_1_internal,
         input$mode_2_internal,
         input$departure_date_2_internal,
         input$departure_time_2_internal,
         input$time_window_2_internal,
         input$max_walk_time_2_internal,
         input$max_trip_duration_2_internal,
+        input$network_2_internal,
         compare_mode()
       ),
       {
@@ -284,7 +316,14 @@ function(app_args) {
           lon = locations$end$lon
         )
 
-        run_routing <- function(modes, date, time, window, walk, total) {
+        run_routing <- function(net_id, modes, date, time, window, walk, total) {
+          # Select network object
+          current_net <- if (!is.null(net_id) && net_id %in% names(networks)) {
+            networks[[net_id]]
+          } else {
+            networks[[1]]
+          }
+
           departure_datetime <- as.POSIXct(
             paste(date, time),
             format = "%Y-%m-%d %H:%M"
@@ -295,7 +334,7 @@ function(app_args) {
           tryCatch({
             if (utils::packageVersion("r5r") >= "2.3.0") {
               r5r::detailed_itineraries(
-                r5r_network = r5r_network,
+                r5r_network = current_net,
                 origins = origin,
                 destinations = destination,
                 mode = modes,
@@ -308,7 +347,7 @@ function(app_args) {
               )
             } else {
               r5r::detailed_itineraries(
-                r5r_core = r5r_network,
+                r5r_core = current_net,
                 origins = origin,
                 destinations = destination,
                 mode = modes,
@@ -328,6 +367,7 @@ function(app_args) {
 
         t1_start <- Sys.time()
         res1 <- run_routing(
+          input$network_1_internal,
           input$mode_1_internal, input$departure_date_1_internal, input$departure_time_1_internal,
           input$time_window_1_internal, input$max_walk_time_1_internal, input$max_trip_duration_1_internal
         )
@@ -336,6 +376,7 @@ function(app_args) {
         if (is_comparing) {
           t2_start <- Sys.time()
           res2 <- run_routing(
+            input$network_2_internal,
             input$mode_2_internal, input$departure_date_2_internal, input$departure_time_2_internal,
             input$time_window_2_internal, input$max_walk_time_2_internal, input$max_trip_duration_2_internal
           )
@@ -425,10 +466,15 @@ function(app_args) {
       }
 
       if (is_comparing) {
-        draw_route_layer(res$res1, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", "Route 1")
-        draw_route_layer(res$res2, "route_layer_2", palette2, "top-right", r5r_exec_time_2(), "legend_2", "Route 2")
+        # Determine network labels
+        net1_label <- if (has_multiple_networks && !is.null(input$network_1_internal)) paste0(": ", input$network_1_internal) else ""
+        net2_label <- if (has_multiple_networks && !is.null(input$network_2_internal)) paste0(": ", input$network_2_internal) else ""
+        
+        draw_route_layer(res$res1, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", paste0("Route 1", net1_label))
+        draw_route_layer(res$res2, "route_layer_2", palette2, "top-right", r5r_exec_time_2(), "legend_2", paste0("Route 2", net2_label))
       } else {
-        draw_route_layer(res, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", "Modes")
+        net1_label <- if (has_multiple_networks && !is.null(input$network_1_internal)) paste0(" (", input$network_1_internal, ")") else ""
+        draw_route_layer(res, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", paste0("Modes", net1_label))
       }
       
       # Handle empty results notifications
@@ -561,11 +607,25 @@ function(app_args) {
 
       is_comparing <- compare_mode()
 
+      # Handle network referencing in generated code
+      get_network_code_ref <- function(net_id) {
+        if (!has_multiple_networks) return(network_object_name_for_code)
+        # If we have multiple networks, we assume the user has a list object named 'r5r_network' (or whatever passed name)
+        # and we access it by name.
+        # However, for demo mode, we might need special handling if we want to show 'list(...)' setup?
+        # For simplicity, we assume the user has the list object in their environment.
+        if (is.null(net_id)) return(paste0(network_object_name_for_code, "[[1]]"))
+        paste0(network_object_name_for_code, "[[\"", net_id, "\"]]")
+      }
+
       # Use glue to construct the detailed_itineraries call
       if (is_comparing) {
+        net1_ref <- get_network_code_ref(input$network_1_internal)
+        net2_ref <- get_network_code_ref(input$network_2_internal)
+        
         itinerary_call <- glue::glue(
           "itinerary1 <- r5r::detailed_itineraries(\n",
-          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  {network_arg_name} = {net1_ref},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
           "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1_internal), collapse = \", \"), \")\")},\n",
@@ -577,7 +637,7 @@ function(app_args) {
           "  drop_geometry = FALSE\n",
           ")\n\n",
           "itinerary2 <- r5r::detailed_itineraries(\n",
-          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  {network_arg_name} = {net2_ref},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
           "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_2_internal), collapse = \", \"), \")\")},\n",
@@ -594,9 +654,11 @@ function(app_args) {
           "  mapgl::add_line_layer(id = \"route2\", source = itinerary2[itinerary2$option == 1, ], line_color = \"#1b4332\", line_width = 5)"
         )
       } else {
+        net1_ref <- get_network_code_ref(input$network_1_internal)
+        
         itinerary_call <- glue::glue(
           "itinerary <- r5r::detailed_itineraries(\n",
-          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  {network_arg_name} = {net1_ref},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
           "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1_internal), collapse = \", \"), \")\")},\n",

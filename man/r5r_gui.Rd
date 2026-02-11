@@ -13,7 +13,8 @@ r5r_gui(
 )
 }
 \arguments{
-\item{r5r_network}{A pre-built 'r5r' network object. This object contains the street and transit network data required for routing calculations.}
+\item{r5r_network}{A pre-built 'r5r' network object, or a named list of such objects for comparison.
+If a list is provided, the list names will be used as labels in the GUI. If a single object is provided, its variable name will be used as the label.}
 
 \item{center}{A numeric vector of length 2, specifying the initial longitude and latitude for the map's center. If \code{NULL} (the default), the map will be centered on the bounding box of the \code{r5r_network}. If \code{{r5r}} is below version 2.4.0, calculating the bounding box may be slow.}
 
@@ -54,5 +55,10 @@ if (interactive()) {
   map_center <- c(-51.22, -30.05)
   map_zoom <- 11
   r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
+  
+  # Compare two networks
+  # Note: For this example, we use the same network object twice. 
+  # In a real scenario, you would use two different networks (e.g. current vs future).
+  r5r_gui(list("Baseline" = r5r_network, "Scenario A" = r5r_network))
 }
 }
