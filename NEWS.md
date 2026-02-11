@@ -7,7 +7,7 @@
     * In Compare Mode, two independent legends are shown in the top corners for easy comparison.
     * Route 1 and Route 2 use distinct color palettes (Blue/Orange vs. Green/Teal).
 * **UI Improvements**:
-    * Refactored layout into a 3-column design with collapsible sidebars.
+    * Refactored layout into a 3-column design with collapsible and resizable sidebars.
     * Moved control buttons to a dedicated toolbar.
     * Repositioned notifications to the bottom-right to prevent overlap.
 * **Reproducible Code**: Updated "Copy R Code" to generate script for both single and dual routing requests, correctly referencing specific network objects from the list.
