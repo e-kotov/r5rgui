@@ -225,6 +225,7 @@ ui <- shiny::fluidPage(
         mapgl::maplibreOutput("map"),
         shiny::div(
           style = "position: absolute; bottom: 10px; left: 10px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;",
+          shiny::uiOutput("exec_time_overlay_ui"),
           shiny::uiOutput("copy_code_message_ui"),
           shiny::actionButton("copy_code", "Copy R Code")
         )

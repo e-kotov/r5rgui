@@ -23,9 +23,22 @@ function(app_args) {
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
+    r5r_exec_time <- shiny::reactiveVal(NULL)
 
     output$copy_code_message_ui <- shiny::renderUI({
       copy_code_message()
+    })
+
+    output$exec_time_overlay_ui <- shiny::renderUI({
+      et <- r5r_exec_time()
+      if (is.null(et)) {
+        return(NULL)
+      }
+      shiny::div(
+        style = "background: rgba(255, 255, 255, 0.8); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #777; pointer-events: none; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 5px;",
+        shiny::div("Last request:"),
+        shiny::div(paste0(round(et * 1000, 0), "ms"), style = "font-weight: bold; color: #333;")
+      )
     })
 
     output$map <- mapgl::renderMaplibre({
@@ -168,6 +181,7 @@ function(app_args) {
       mapgl::clear_layer(proxy, "route_layer")
       mapgl::clear_legend(proxy)
       copy_code_message(NULL)
+      r5r_exec_time(NULL)
     })
 
     # --- OBSERVERS TO CLEAR COPY CODE MESSAGE ---
@@ -249,7 +263,8 @@ function(app_args) {
           return(NULL)
         }
 
-        tryCatch(
+        t0 <- Sys.time()
+        res <- tryCatch(
           {
             # Add backward compatibility for r5r versions < 2.3.0
             if (utils::packageVersion("r5r") >= "2.3.0") {
@@ -288,6 +303,8 @@ function(app_args) {
             return(NULL)
           }
         )
+        r5r_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
+        return(res)
       }
     )
 
