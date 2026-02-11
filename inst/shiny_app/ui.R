@@ -139,6 +139,28 @@ ui <- shiny::fluidPage(
     shiny::sidebarPanel(
       width = 3,
       shiny::h4("Trip Parameters"),
+      shiny::selectInput(
+        "mode",
+        "Transport Modes",
+        choices = c(
+          "WALK",
+          "BICYCLE",
+          "CAR",
+          "BICYCLE_RENT",
+          "CAR_PARK",
+          "TRANSIT",
+          "TRAM",
+          "SUBWAY",
+          "RAIL",
+          "BUS",
+          "FERRY",
+          "CABLE_CAR",
+          "GONDOLA",
+          "FUNICULAR"
+        ),
+        selected = c("WALK", "TRANSIT"),
+        multiple = TRUE
+      ),
       shiny::dateInput(
         "departure_date",
         "Departure Date",

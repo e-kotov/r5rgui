@@ -209,14 +209,16 @@ function(app_args) {
         input$departure_time,
         input$time_window,
         input$max_walk_time,
-        input$max_trip_duration
+        input$max_trip_duration,
+        input$mode
       ),
       {
         shiny::req(
           locations$start,
           locations$end,
           input$max_walk_time,
-          input$max_trip_duration
+          input$max_trip_duration,
+          input$mode
         )
         shiny::showNotification(
           "Calculating route...",
@@ -255,7 +257,7 @@ function(app_args) {
                 r5r_network = r5r_network,
                 origins = origin,
                 destinations = destination,
-                mode = c("WALK", "TRANSIT"),
+                mode = input$mode,
                 departure_datetime = departure_datetime,
                 time_window = as.integer(input$time_window),
                 max_walk_time = as.integer(input$max_walk_time),
@@ -268,7 +270,7 @@ function(app_args) {
                 r5r_core = r5r_network,
                 origins = origin,
                 destinations = destination,
-                mode = c("WALK", "TRANSIT"),
+                mode = input$mode,
                 departure_datetime = departure_datetime,
                 time_window = as.integer(input$time_window),
                 max_walk_time = as.integer(input$max_walk_time),
@@ -445,7 +447,7 @@ function(app_args) {
         "    lat = {locations$end$lat},\n",
         "    lon = {locations$end$lon}\n",
         "  ),\n",
-        "  mode = c(\"WALK\", \"TRANSIT\"),\n",
+        "  mode = {paste0(\"c(\", paste0(shQuote(input$mode), collapse = \", \"), \")\")},\n",
         "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
         "  time_window = {as.integer(input$time_window)}L,\n",
         "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
