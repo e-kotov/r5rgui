@@ -53,7 +53,7 @@ r5r_gui_demo()
 ```
 
 ![r5gui demo in
-action](https://github.com/user-attachments/assets/c63723f0-f354-4df1-82e2-17c90574da63)
+action](https://github.com/user-attachments/assets/5852c1e8-acfd-46a6-a76d-34af75af174b)
 
 r5gui demo in action
 
