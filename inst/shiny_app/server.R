@@ -15,18 +15,13 @@ function(app_args) {
     is_demo_mode <- getOption("r5rgui.is_demo_mode", default = FALSE)
 
     # Update the departure date input with the value from the function arguments
-    shiny::updateDateInput(
-      session,
-      "departure_date",
-      value = app_args$departure_date
-    )
+    shiny::updateDateInput(session, "departure_date", value = app_args$departure_date)
+    shiny::updateDateInput(session, "departure_date_1", value = app_args$departure_date)
+    shiny::updateDateInput(session, "departure_date_2", value = app_args$departure_date)
 
     # Update the transport mode input with the value from the function arguments
-    shiny::updateSelectInput(
-      session,
-      "mode",
-      selected = app_args$mode
-    )
+    shiny::updateSelectInput(session, "mode", selected = app_args$mode)
+    shiny::updateSelectInput(session, "mode_1", selected = app_args$mode)
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
@@ -57,9 +52,28 @@ function(app_args) {
     # Sync mode inputs when switching
     shiny::observeEvent(compare_mode(), {
       if (compare_mode()) {
+        # Sync from Normal to Route 1
         shiny::updateSelectInput(session, "mode_1", selected = input$mode)
+        shiny::updateDateInput(session, "departure_date_1", value = input$departure_date)
+        shiny::updateTextInput(session, "departure_time_1", value = input$departure_time)
+        shiny::updateNumericInput(session, "time_window_1", value = input$time_window)
+        shiny::updateNumericInput(session, "max_walk_time_1", value = input$max_walk_time)
+        shiny::updateNumericInput(session, "max_trip_duration_1", value = input$max_trip_duration)
+        
+        # Also sync to Route 2 as a starting point if it's the first time
+        shiny::updateDateInput(session, "departure_date_2", value = input$departure_date)
+        shiny::updateTextInput(session, "departure_time_2", value = input$departure_time)
+        shiny::updateNumericInput(session, "time_window_2", value = input$time_window)
+        shiny::updateNumericInput(session, "max_walk_time_2", value = input$max_walk_time)
+        shiny::updateNumericInput(session, "max_trip_duration_2", value = input$max_trip_duration)
       } else {
+        # Sync from Route 1 back to Normal
         shiny::updateSelectInput(session, "mode", selected = input$mode_1)
+        shiny::updateDateInput(session, "departure_date", value = input$departure_date_1)
+        shiny::updateTextInput(session, "departure_time", value = input$departure_time_1)
+        shiny::updateNumericInput(session, "time_window", value = input$time_window_1)
+        shiny::updateNumericInput(session, "max_walk_time", value = input$max_walk_time_1)
+        shiny::updateNumericInput(session, "max_trip_duration", value = input$max_trip_duration_1)
       }
     })
 
@@ -267,25 +281,36 @@ function(app_args) {
         input$max_trip_duration,
         input$mode,
         input$mode_1,
+        input$departure_date_1,
+        input$departure_time_1,
+        input$time_window_1,
+        input$max_walk_time_1,
+        input$max_trip_duration_1,
         input$mode_2,
+        input$departure_date_2,
+        input$departure_time_2,
+        input$time_window_2,
+        input$max_walk_time_2,
+        input$max_trip_duration_2,
         compare_mode()
       ),
       {
-        shiny::req(
-          locations$start,
-          locations$end,
-          input$max_walk_time,
-          input$max_trip_duration
-        )
+        shiny::req(locations$start, locations$end)
         
         is_comparing <- compare_mode()
-        modes_to_use <- if (is_comparing) list(m1 = input$mode_1, m2 = input$mode_2) else list(m = input$mode)
         
-        # Validate that modes are not empty
         if (is_comparing) {
-          shiny::req(length(modes_to_use$m1) > 0, length(modes_to_use$m2) > 0)
+          shiny::req(
+            input$mode_1, input$mode_2,
+            input$max_walk_time_1, input$max_trip_duration_1,
+            input$max_walk_time_2, input$max_trip_duration_2
+          )
         } else {
-          shiny::req(length(modes_to_use$m) > 0)
+          shiny::req(
+            input$mode,
+            input$max_walk_time,
+            input$max_trip_duration
+          )
         }
 
         shiny::showNotification(
@@ -304,18 +329,17 @@ function(app_args) {
           lat = locations$end$lat,
           lon = locations$end$lon
         )
-        departure_datetime <- as.POSIXct(
-          paste(input$departure_date, input$departure_time),
-          format = "%Y-%m-%d %H:%M"
-        )
 
-        if (is.na(departure_datetime)) {
-          shiny::showNotification("Invalid date or time format.", type = "error")
-          return(NULL)
-        }
+        run_routing <- function(modes, date, time, window, walk, total) {
+          departure_datetime <- as.POSIXct(
+            paste(date, time),
+            format = "%Y-%m-%d %H:%M"
+          )
 
-        run_routing <- function(modes) {
-          # Ensure r5r_network is accessible (it should be via lexical scoping)
+          if (is.na(departure_datetime)) {
+            return(NULL)
+          }
+
           tryCatch({
             if (utils::packageVersion("r5r") >= "2.3.0") {
               r5r::detailed_itineraries(
@@ -324,9 +348,9 @@ function(app_args) {
                 destinations = destination,
                 mode = modes,
                 departure_datetime = departure_datetime,
-                time_window = as.integer(input$time_window),
-                max_walk_time = as.integer(input$max_walk_time),
-                max_trip_duration = as.integer(input$max_trip_duration),
+                time_window = as.integer(window),
+                max_walk_time = as.integer(walk),
+                max_trip_duration = as.integer(total),
                 shortest_path = TRUE,
                 drop_geometry = FALSE
               )
@@ -337,9 +361,9 @@ function(app_args) {
                 destinations = destination,
                 mode = modes,
                 departure_datetime = departure_datetime,
-                time_window = as.integer(input$time_window),
-                max_walk_time = as.integer(input$max_walk_time),
-                max_trip_duration = as.integer(input$max_trip_duration),
+                time_window = as.integer(window),
+                max_walk_time = as.integer(walk),
+                max_trip_duration = as.integer(total),
                 shortest_path = TRUE,
                 drop_geometry = FALSE
               )
@@ -352,11 +376,20 @@ function(app_args) {
 
         t0 <- Sys.time()
         if (is_comparing) {
-          res1 <- run_routing(modes_to_use$m1)
-          res2 <- run_routing(modes_to_use$m2)
+          res1 <- run_routing(
+            input$mode_1, input$departure_date_1, input$departure_time_1,
+            input$time_window_1, input$max_walk_time_1, input$max_trip_duration_1
+          )
+          res2 <- run_routing(
+            input$mode_2, input$departure_date_2, input$departure_time_2,
+            input$time_window_2, input$max_walk_time_2, input$max_trip_duration_2
+          )
           res <- list(res1 = res1, res2 = res2)
         } else {
-          res <- run_routing(modes_to_use$m)
+          res <- run_routing(
+            input$mode, input$departure_date, input$departure_time,
+            input$time_window, input$max_walk_time, input$max_trip_duration
+          )
         }
         r5r_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
         
@@ -467,12 +500,10 @@ function(app_args) {
       }
     })
 
-    # --- ITINERARY TABLE RENDERER ---
-    output$itinerary_table <- DT::renderDataTable({
-      res <- route_data()
-      shiny::req(!is.null(res))
-      
-      detailed_route <- if (compare_mode()) res$res1 else res
+    # --- ITINERARY TABLE RENDERERS ---
+    
+    # Helper function to render a single itinerary table
+    render_itinerary_table <- function(detailed_route) {
       shiny::req(!is.null(detailed_route), nrow(detailed_route) > 0)
 
       # Show first option
@@ -482,7 +513,6 @@ function(app_args) {
         detailed_route
       }
       
-      display_df <- sf::st_drop_geometry(first_option_df)
       display_df <- sf::st_drop_geometry(first_option_df)
 
       cols_to_show <- c(
@@ -510,6 +540,27 @@ function(app_args) {
         rownames = FALSE,
         class = 'cell-border stripe'
       )
+    }
+
+    # Normal mode table
+    output$itinerary_table <- DT::renderDataTable({
+      res <- route_data()
+      shiny::req(!is.null(res), !compare_mode())
+      render_itinerary_table(res)
+    })
+
+    # Compare mode table 1
+    output$itinerary_table_1 <- DT::renderDataTable({
+      res <- route_data()
+      shiny::req(!is.null(res), compare_mode())
+      render_itinerary_table(res$res1)
+    })
+
+    # Compare mode table 2
+    output$itinerary_table_2 <- DT::renderDataTable({
+      res <- route_data()
+      shiny::req(!is.null(res), compare_mode())
+      render_itinerary_table(res$res2)
     })
 
     # --- OBSERVER FOR COPY CODE BUTTON ---
@@ -575,10 +626,10 @@ function(app_args) {
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
           "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1), collapse = \", \"), \")\")},\n",
-          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
-          "  time_window = {as.integer(input$time_window)}L,\n",
-          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
-          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  departure_datetime = as.POSIXct(\"{input$departure_date_1} {input$departure_time_1}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window_1)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time_1)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration_1)}L,\n",
           "  shortest_path = TRUE,\n",
           "  drop_geometry = FALSE\n",
           ")\n\n",
@@ -587,10 +638,10 @@ function(app_args) {
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
           "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_2), collapse = \", \"), \")\")},\n",
-          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
-          "  time_window = {as.integer(input$time_window)}L,\n",
-          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
-          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  departure_datetime = as.POSIXct(\"{input$departure_date_2} {input$departure_time_2}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window_2)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time_2)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration_2)}L,\n",
           "  shortest_path = TRUE,\n",
           "  drop_geometry = FALSE\n",
           ")\n\n",

@@ -159,60 +159,85 @@ ui <- shiny::fluidPage(
       # Compare Mode Inputs
       shiny::conditionalPanel(
         condition = "input.compare_mode",
-        shiny::selectInput(
-          "mode_1",
-          "Transport Modes 1",
-          choices = c(
-            "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
-            "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
-            "CABLE_CAR", "GONDOLA", "FUNICULAR"
+        shiny::tabsetPanel(
+          id = "compare_tabs_sidebar",
+          type = "pills",
+          shiny::tabPanel(
+            "Route 1",
+            shiny::div(style = "margin-top: 10px;"),
+            shiny::selectInput(
+              "mode_1",
+              "Transport Modes",
+              choices = c(
+                "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
+                "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
+                "CABLE_CAR", "GONDOLA", "FUNICULAR"
+              ),
+              selected = c("WALK", "TRANSIT"),
+              multiple = TRUE
+            ),
+            shiny::dateInput("departure_date_1", "Departure Date", value = "2019-05-13"),
+            shiny::textInput("departure_time_1", "Departure Time (HH:MM)", value = "14:00"),
+            shiny::numericInput("time_window_1", "Time Window (min)", value = 10, min = 1, max = 180),
+            shiny::numericInput("max_walk_time_1", "Max Walk Time (min)", value = 15, min = 1, max = 120),
+            shiny::numericInput("max_trip_duration_1", "Max Trip Duration (min)", value = 120, min = 5, max = 300)
           ),
-          selected = c("WALK", "TRANSIT"),
-          multiple = TRUE
-        ),
-        shiny::selectInput(
-          "mode_2",
-          "Transport Modes 2",
-          choices = c(
-            "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
-            "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
-            "CABLE_CAR", "GONDOLA", "FUNICULAR"
-          ),
-          selected = c("CAR"),
-          multiple = TRUE
+          shiny::tabPanel(
+            "Route 2",
+            shiny::div(style = "margin-top: 10px;"),
+            shiny::selectInput(
+              "mode_2",
+              "Transport Modes",
+              choices = c(
+                "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
+                "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
+                "CABLE_CAR", "GONDOLA", "FUNICULAR"
+              ),
+              selected = c("CAR"),
+              multiple = TRUE
+            ),
+            shiny::dateInput("departure_date_2", "Departure Date", value = "2019-05-13"),
+            shiny::textInput("departure_time_2", "Departure Time (HH:MM)", value = "14:00"),
+            shiny::numericInput("time_window_2", "Time Window (min)", value = 10, min = 1, max = 180),
+            shiny::numericInput("max_walk_time_2", "Max Walk Time (min)", value = 15, min = 1, max = 120),
+            shiny::numericInput("max_trip_duration_2", "Max Trip Duration (min)", value = 120, min = 5, max = 300)
+          )
         )
       ),
 
-      shiny::dateInput(
-        "departure_date",
-        "Departure Date",
-        value = "2019-05-13"
-      ),
-      shiny::textInput(
-        "departure_time",
-        "Departure Time (HH:MM)",
-        value = "14:00"
-      ),
-      shiny::numericInput(
-        "time_window",
-        "Time Window (minutes)",
-        value = 10,
-        min = 1,
-        max = 180
-      ),
-      shiny::numericInput(
-        "max_walk_time",
-        "Max Walk Time (minutes)",
-        value = 15,
-        min = 1,
-        max = 120
-      ),
-      shiny::numericInput(
-        "max_trip_duration",
-        "Max Trip Duration (minutes)",
-        value = 120,
-        min = 5,
-        max = 300
+      shiny::conditionalPanel(
+        condition = "!input.compare_mode",
+        shiny::dateInput(
+          "departure_date",
+          "Departure Date",
+          value = "2019-05-13"
+        ),
+        shiny::textInput(
+          "departure_time",
+          "Departure Time (HH:MM)",
+          value = "14:00"
+        ),
+        shiny::numericInput(
+          "time_window",
+          "Time Window (minutes)",
+          value = 10,
+          min = 1,
+          max = 180
+        ),
+        shiny::numericInput(
+          "max_walk_time",
+          "Max Walk Time (minutes)",
+          value = 15,
+          min = 1,
+          max = 120
+        ),
+        shiny::numericInput(
+          "max_trip_duration",
+          "Max Trip Duration (minutes)",
+          value = 120,
+          min = 5,
+          max = 300
+        )
       ),
       shiny::hr(),
       shiny::h4("Route Selection"),
@@ -252,9 +277,30 @@ ui <- shiny::fluidPage(
           shiny::actionButton("copy_code", "Copy R Code")
         )
       ),
-      shiny::hr(),
-      shiny::h4("Itinerary Details"),
-      DT::dataTableOutput("itinerary_table")
+      shiny::div(
+        class = "table-wrapper",
+        shiny::conditionalPanel(
+          condition = "!input.compare_mode",
+          shiny::h4("Itinerary Details"),
+          DT::dataTableOutput("itinerary_table")
+        ),
+        shiny::conditionalPanel(
+          condition = "input.compare_mode",
+          shiny::tabsetPanel(
+            id = "compare_tabs_tables",
+            shiny::tabPanel(
+              "Itinerary 1",
+              shiny::div(style = "margin-top: 10px;"),
+              DT::dataTableOutput("itinerary_table_1")
+            ),
+            shiny::tabPanel(
+              "Itinerary 2",
+              shiny::div(style = "margin-top: 10px;"),
+              DT::dataTableOutput("itinerary_table_2")
+            )
+          )
+        )
+      )
     )
   )
 )
