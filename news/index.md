@@ -1,6 +1,6 @@
 # Changelog
 
-## r5rgui 0.2.0
+## r5rgui (development version)
 
 - **New Compare Mode**: Added a toggle to switch between Normal and
   Compare modes, allowing users to compare two routes side-by-side with

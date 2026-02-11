@@ -12,7 +12,9 @@ r5r_gui(
   center = NULL,
   zoom = NULL,
   departure_date = Sys.Date(),
-  mode = c("WALK", "TRANSIT")
+  mode = c("WALK", "TRANSIT"),
+  basemaps = list(Positron = mapgl::carto_style("positron"), `Dark Matter` =
+    mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager"))
 )
 ```
 
@@ -53,6 +55,15 @@ r5r_gui(
   [`r5r`](https://ipeagit.github.io/r5r/reference/r5r.html)). Defaults
   to `c("WALK", "TRANSIT")`.
 
+- basemaps:
+
+  A named list of MapLibre style URLs (or style generator functions like
+  [`mapgl::carto_style()`](https://walker-data.com/mapgl/reference/carto_style.html)).
+  The names are used in the GUI selector. Defaults to a set of Carto
+  styles (Voyager, Positron, Dark Matter). See [mapgl styling
+  helpers](https://walker-data.com/mapgl/reference/index.html#styling-helpers)
+  for options.
+
 ## Value
 
 This function does not return a value; it launches a Shiny application.
@@ -83,9 +94,9 @@ if (interactive()) {
   map_center <- c(-51.22, -30.05)
   map_zoom <- 11
   r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
-  
+
   # Compare two networks
-  # Note: For this example, we use the same network object twice. 
+  # Note: For this example, we use the same network object twice.
   # In a real scenario, you would use two different networks (e.g. current vs future).
   r5r_gui(list("Baseline" = r5r_network, "Scenario A" = r5r_network))
 }

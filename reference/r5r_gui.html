@@ -18,7 +18,7 @@ user interface for the 'r5r' package, allowing for interactive transit routing."
 
     <a class="navbar-brand me-2" href="../index.html">r5rgui</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -55,7 +55,9 @@ user interface for the 'r5r' package, allowing for interactive transit routing.<
 <span>  center <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  zoom <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  departure_date <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"WALK"</span>, <span class="st">"TRANSIT"</span><span class="op">)</span></span>
+<span>  mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"WALK"</span>, <span class="st">"TRANSIT"</span><span class="op">)</span>,</span>
+<span>  basemaps <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Positron <span class="op">=</span> <span class="fu">mapgl</span><span class="fu">::</span><span class="fu"><a href="https://walker-data.com/mapgl/reference/carto_style.html" class="external-link">carto_style</a></span><span class="op">(</span><span class="st">"positron"</span><span class="op">)</span>, `Dark Matter` <span class="op">=</span></span>
+<span>    <span class="fu">mapgl</span><span class="fu">::</span><span class="fu"><a href="https://walker-data.com/mapgl/reference/carto_style.html" class="external-link">carto_style</a></span><span class="op">(</span><span class="st">"dark-matter"</span><span class="op">)</span>, Voyager <span class="op">=</span> <span class="fu">mapgl</span><span class="fu">::</span><span class="fu"><a href="https://walker-data.com/mapgl/reference/carto_style.html" class="external-link">carto_style</a></span><span class="op">(</span><span class="st">"voyager"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -82,6 +84,10 @@ If a list is provided, the list names will be used as labels in the GUI. If a si
 
 <dt id="arg-mode">mode<a class="anchor" aria-label="anchor" href="#arg-mode"></a></dt>
 <dd><p>A character vector specifying the initial transport modes. This is passed directly to the <code>mode</code> argument in <a href="https://ipeagit.github.io/r5r/reference/detailed_itineraries.html" class="external-link">detailed_itineraries()</a> (and other functions of <code><a href="https://ipeagit.github.io/r5r/reference/r5r.html" class="external-link">r5r</a></code>). Defaults to <code>c("WALK", "TRANSIT")</code>.</p></dd>
+
+
+<dt id="arg-basemaps">basemaps<a class="anchor" aria-label="anchor" href="#arg-basemaps"></a></dt>
+<dd><p>A named list of MapLibre style URLs (or style generator functions like <code><a href="https://walker-data.com/mapgl/reference/carto_style.html" class="external-link">mapgl::carto_style()</a></code>). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See <a href="https://walker-data.com/mapgl/reference/index.html#styling-helpers" class="external-link">mapgl styling helpers</a> for options.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -114,9 +120,9 @@ If a list is provided, the list names will be used as labels in the GUI. If a si
 <span class="r-in"><span>  <span class="va">map_center</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">51.22</span>, <span class="op">-</span><span class="fl">30.05</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">map_zoom</span> <span class="op">&lt;-</span> <span class="fl">11</span></span></span>
 <span class="r-in"><span>  <span class="fu">r5r_gui</span><span class="op">(</span><span class="va">r5r_network</span>, center <span class="op">=</span> <span class="va">map_center</span>, zoom <span class="op">=</span> <span class="va">map_zoom</span><span class="op">)</span></span></span>
-<span class="r-in"><span>  </span></span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># Compare two networks</span></span></span>
-<span class="r-in"><span>  <span class="co"># Note: For this example, we use the same network object twice. </span></span></span>
+<span class="r-in"><span>  <span class="co"># Note: For this example, we use the same network object twice.</span></span></span>
 <span class="r-in"><span>  <span class="co"># In a real scenario, you would use two different networks (e.g. current vs future).</span></span></span>
 <span class="r-in"><span>  <span class="fu">r5r_gui</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Baseline"</span> <span class="op">=</span> <span class="va">r5r_network</span>, <span class="st">"Scenario A"</span> <span class="op">=</span> <span class="va">r5r_network</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
