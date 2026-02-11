@@ -12,7 +12,7 @@ ui <- shiny::fluidPage(
       ),
       shiny::h3(
         shiny::HTML(
-          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code>"
+          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
         ),
         style = "margin: 0;"
       )
