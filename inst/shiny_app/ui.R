@@ -120,38 +120,43 @@ ui <- shiny::fluidPage(
         border-top: 1px solid #eee;
       }
 
-      /* --- Map Control Stacking (Bottom-Right) --- */
+      /* --- Map Control Stacking (Top & Bottom Right) --- */
       
-      /* Target the container to ensure it doesn't stretch items */
-      .maplibregl-ctrl-bottom-right {
+      /* Target both containers to ensure they don't stretch items */
+      .maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-right {
         display: flex !important;
         flex-direction: column !important;
         align-items: flex-end !important;
         pointer-events: none;
       }
       
-      .maplibregl-ctrl-bottom-right > * {
+      .maplibregl-ctrl-top-right > *, .maplibregl-ctrl-bottom-right > * {
         pointer-events: auto;
       }
 
-      /* Lift navigation and fullscreen controls together */
-      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
-        margin-bottom: 0 !important;
-        border-radius: 0 !important;
+      /* Consistent grouping for all control blocks */
+      .maplibregl-ctrl-group {
+        margin-bottom: 5px !important; /* Small gap between groups */
+        border-radius: 4px !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
       }
-
-      /* First group (Navigation) needs top corners */
-      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:nth-child(1) {
-        border-top-left-radius: 4px !important;
-        border-top-right-radius: 4px !important;
+      
+      /* In bottom-right, the groups (Zoom, Fullscreen) need to be pushed up to clear the basemap selector panel */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+        margin-bottom: 75px !important; /* Combined height of selector + padding */
       }
-
-      /* Second group (Fullscreen) needs bottom corners and large margin to clear selector + attribution */
-      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:nth-child(2) {
-        border-bottom-left-radius: 4px !important;
-        border-bottom-right-radius: 4px !important;
-        margin-bottom: 100px !important; 
+      
+      /* Wait, if multiple groups exist, only the bottom-most needs the large margin */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:last-of-type {
+        margin-bottom: 75px !important;
+      }
+      
+      /* Overriding the generic margin if it's not the last one */
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+        margin-bottom: 5px !important;
+      }
+      .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:nth-last-child(2) {
+        margin-bottom: 75px !important; /* The one above attribution */
       }
 
       /* Attribution stays at the very bottom - push it slightly off the edges */
