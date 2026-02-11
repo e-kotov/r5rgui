@@ -14,19 +14,20 @@ function(app_args) {
     # This will be TRUE if launched from r5r_gui_demo(), FALSE otherwise
     is_demo_mode <- getOption("r5rgui.is_demo_mode", default = FALSE)
 
-    # Update the departure date input with the value from the function arguments
-    shiny::updateDateInput(session, "departure_date", value = app_args$departure_date)
-    shiny::updateDateInput(session, "departure_date_1", value = app_args$departure_date)
-    shiny::updateDateInput(session, "departure_date_2", value = app_args$departure_date)
-
-    # Update the transport mode input with the value from the function arguments
-    shiny::updateSelectInput(session, "mode", selected = app_args$mode)
-    shiny::updateSelectInput(session, "mode_1", selected = app_args$mode)
+    # Initial Sync from app_args
+    shiny::updateDateInput(session, "departure_date_1_internal", value = app_args$departure_date)
+    shiny::updateDateInput(session, "departure_date_2_internal", value = app_args$departure_date)
+    shiny::updateSelectInput(session, "mode_1_internal", selected = app_args$mode)
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
-    r5r_exec_time <- shiny::reactiveVal(NULL)
+    r5r_exec_time_1 <- shiny::reactiveVal(NULL)
+    r5r_exec_time_2 <- shiny::reactiveVal(NULL)
     compare_mode <- shiny::reactiveVal(FALSE)
+
+    output$left_sidebar_title <- shiny::renderUI({
+      if (compare_mode()) "Route 1 Settings" else "Trip Parameters"
+    })
 
     output$compare_mode_ui <- shiny::renderUI({
       active <- compare_mode()
@@ -52,45 +53,18 @@ function(app_args) {
     # Sync mode inputs when switching
     shiny::observeEvent(compare_mode(), {
       if (compare_mode()) {
-        # Sync from Normal to Route 1
-        shiny::updateSelectInput(session, "mode_1", selected = input$mode)
-        shiny::updateDateInput(session, "departure_date_1", value = input$departure_date)
-        shiny::updateTextInput(session, "departure_time_1", value = input$departure_time)
-        shiny::updateNumericInput(session, "time_window_1", value = input$time_window)
-        shiny::updateNumericInput(session, "max_walk_time_1", value = input$max_walk_time)
-        shiny::updateNumericInput(session, "max_trip_duration_1", value = input$max_trip_duration)
-        
-        # Also sync to Route 2 as a starting point if it's the first time
-        shiny::updateDateInput(session, "departure_date_2", value = input$departure_date)
-        shiny::updateTextInput(session, "departure_time_2", value = input$departure_time)
-        shiny::updateNumericInput(session, "time_window_2", value = input$time_window)
-        shiny::updateNumericInput(session, "max_walk_time_2", value = input$max_walk_time)
-        shiny::updateNumericInput(session, "max_trip_duration_2", value = input$max_trip_duration)
-      } else {
-        # Sync from Route 1 back to Normal
-        shiny::updateSelectInput(session, "mode", selected = input$mode_1)
-        shiny::updateDateInput(session, "departure_date", value = input$departure_date_1)
-        shiny::updateTextInput(session, "departure_time", value = input$departure_time_1)
-        shiny::updateNumericInput(session, "time_window", value = input$time_window_1)
-        shiny::updateNumericInput(session, "max_walk_time", value = input$max_walk_time_1)
-        shiny::updateNumericInput(session, "max_trip_duration", value = input$max_trip_duration_1)
+        # Sync from Normal (which uses _1_internal when in normal mode) to Route 2
+        shiny::updateSelectInput(session, "mode_2_internal", selected = input$mode_1_internal)
+        shiny::updateDateInput(session, "departure_date_2_internal", value = input$departure_date_1_internal)
+        shiny::updateTextInput(session, "departure_time_2_internal", value = input$departure_time_1_internal)
+        shiny::updateNumericInput(session, "time_window_2_internal", value = input$time_window_1_internal)
+        shiny::updateNumericInput(session, "max_walk_time_2_internal", value = input$max_walk_time_1_internal)
+        shiny::updateNumericInput(session, "max_trip_duration_2_internal", value = input$max_trip_duration_1_internal)
       }
     })
 
     output$copy_code_message_ui <- shiny::renderUI({
       copy_code_message()
-    })
-
-    output$exec_time_overlay_ui <- shiny::renderUI({
-      et <- r5r_exec_time()
-      if (is.null(et)) {
-        return(NULL)
-      }
-      shiny::div(
-        style = "background: rgba(255, 255, 255, 0.8); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #777; pointer-events: none; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 5px;",
-        shiny::div("Last request:"),
-        shiny::div(paste0(round(et * 1000, 0), "ms"), style = "font-weight: bold; color: #333;")
-      )
     })
 
     output$map <- mapgl::renderMaplibre({
@@ -230,12 +204,12 @@ function(app_args) {
       shiny::updateTextInput(session, "start_coords_input", value = "")
       shiny::updateTextInput(session, "end_coords_input", value = "")
       proxy <- mapgl::maplibre_proxy("map")
-      mapgl::clear_layer(proxy, "route_layer")
       mapgl::clear_layer(proxy, "route_layer_1")
       mapgl::clear_layer(proxy, "route_layer_2")
       mapgl::clear_legend(proxy)
       copy_code_message(NULL)
-      r5r_exec_time(NULL)
+      r5r_exec_time_1(NULL)
+      r5r_exec_time_2(NULL)
       compare_mode(FALSE)
     })
 
@@ -274,24 +248,18 @@ function(app_args) {
       list(
         locations$start,
         locations$end,
-        input$departure_date,
-        input$departure_time,
-        input$time_window,
-        input$max_walk_time,
-        input$max_trip_duration,
-        input$mode,
-        input$mode_1,
-        input$departure_date_1,
-        input$departure_time_1,
-        input$time_window_1,
-        input$max_walk_time_1,
-        input$max_trip_duration_1,
-        input$mode_2,
-        input$departure_date_2,
-        input$departure_time_2,
-        input$time_window_2,
-        input$max_walk_time_2,
-        input$max_trip_duration_2,
+        input$mode_1_internal,
+        input$departure_date_1_internal,
+        input$departure_time_1_internal,
+        input$time_window_1_internal,
+        input$max_walk_time_1_internal,
+        input$max_trip_duration_1_internal,
+        input$mode_2_internal,
+        input$departure_date_2_internal,
+        input$departure_time_2_internal,
+        input$time_window_2_internal,
+        input$max_walk_time_2_internal,
+        input$max_trip_duration_2_internal,
         compare_mode()
       ),
       {
@@ -299,22 +267,21 @@ function(app_args) {
         
         is_comparing <- compare_mode()
         
+        shiny::req(
+          input$mode_1_internal,
+          input$max_walk_time_1_internal,
+          input$max_trip_duration_1_internal
+        )
         if (is_comparing) {
           shiny::req(
-            input$mode_1, input$mode_2,
-            input$max_walk_time_1, input$max_trip_duration_1,
-            input$max_walk_time_2, input$max_trip_duration_2
-          )
-        } else {
-          shiny::req(
-            input$mode,
-            input$max_walk_time,
-            input$max_trip_duration
+            input$mode_2_internal,
+            input$max_walk_time_2_internal,
+            input$max_trip_duration_2_internal
           )
         }
 
         shiny::showNotification(
-          if (is_comparing) "Calculating routes (Compare Mode)..." else "Calculating route...",
+          if (is_comparing) "Calculating routes..." else "Calculating route...",
           duration = 3,
           type = "message"
         )
@@ -336,9 +303,7 @@ function(app_args) {
             format = "%Y-%m-%d %H:%M"
           )
 
-          if (is.na(departure_datetime)) {
-            return(NULL)
-          }
+          if (is.na(departure_datetime)) return(NULL)
 
           tryCatch({
             if (utils::packageVersion("r5r") >= "2.3.0") {
@@ -374,24 +339,25 @@ function(app_args) {
           })
         }
 
-        t0 <- Sys.time()
+        t1_start <- Sys.time()
+        res1 <- run_routing(
+          input$mode_1_internal, input$departure_date_1_internal, input$departure_time_1_internal,
+          input$time_window_1_internal, input$max_walk_time_1_internal, input$max_trip_duration_1_internal
+        )
+        r5r_exec_time_1(as.numeric(difftime(Sys.time(), t1_start, units = "secs")))
+
         if (is_comparing) {
-          res1 <- run_routing(
-            input$mode_1, input$departure_date_1, input$departure_time_1,
-            input$time_window_1, input$max_walk_time_1, input$max_trip_duration_1
-          )
+          t2_start <- Sys.time()
           res2 <- run_routing(
-            input$mode_2, input$departure_date_2, input$departure_time_2,
-            input$time_window_2, input$max_walk_time_2, input$max_trip_duration_2
+            input$mode_2_internal, input$departure_date_2_internal, input$departure_time_2_internal,
+            input$time_window_2_internal, input$max_walk_time_2_internal, input$max_trip_duration_2_internal
           )
+          r5r_exec_time_2(as.numeric(difftime(Sys.time(), t2_start, units = "secs")))
           res <- list(res1 = res1, res2 = res2)
         } else {
-          res <- run_routing(
-            input$mode, input$departure_date, input$departure_time,
-            input$time_window, input$max_walk_time, input$max_trip_duration
-          )
+          res <- res1
+          r5r_exec_time_2(NULL)
         }
-        r5r_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
         
         return(res)
       }
@@ -400,7 +366,6 @@ function(app_args) {
     # --- MAP DRAWING OBSERVER ---
     shiny::observe({
       proxy <- mapgl::maplibre_proxy("map")
-      mapgl::clear_layer(proxy, "route_layer")
       mapgl::clear_layer(proxy, "route_layer_1")
       mapgl::clear_layer(proxy, "route_layer_2")
       mapgl::clear_legend(proxy)
@@ -410,33 +375,25 @@ function(app_args) {
 
       is_comparing <- compare_mode()
       
-      # Base color palette for common modes
-      base_colors <- c(
-        "WALK" = "#2f4b7c",
-        "BUS" = "#ffa600",
-        "RAIL" = "#665191",
-        "SUBWAY" = "#d45087",
-        "CAR" = "#a05195",
-        "BICYCLE" = "#70ad47"
-      )
+      # Distinct palettes
+      palette1 <- c("WALK"="#2f4b7c", "BUS"="#ffa600", "RAIL"="#665191", "SUBWAY"="#d45087", "CAR"="#a05195", "BICYCLE"="#70ad47")
+      palette2 <- c("WALK"="#1b4332", "BUS"="#40916c", "RAIL"="#52b788", "SUBWAY"="#74c69d", "CAR"="#95d5b2", "BICYCLE"="#b7e4c7")
 
-      # Helper to extract first option
-      get_first_option <- function(df) {
-        if (is.null(df) || nrow(df) == 0) return(NULL)
-        if ("option" %in% names(df)) df[df$option == 1, ] else df
-      }
-
-      all_legend_values <- character()
-      all_legend_colors <- character()
-
-      draw_route_layer <- function(detailed_route, layer_id, legend_prefix = "") {
-        first_option <- get_first_option(detailed_route)
-        if (is.null(first_option) || nrow(first_option) == 0) return()
+      draw_route_layer <- function(detailed_route, layer_id, palette, pos, time_val, legend_id, title_prefix = "Modes") {
+        if (is.null(detailed_route) || nrow(detailed_route) == 0) return()
+        
+        first_option <- if ("option" %in% names(detailed_route)) {
+          detailed_route[detailed_route$option == 1, ]
+        } else {
+          detailed_route
+        }
+        
+        if (nrow(first_option) == 0) return()
 
         unique_modes <- unique(as.character(first_option$mode))
+        mode_colors <- palette[names(palette) %in% unique_modes]
         
-        # Determine colors for this specific route's modes
-        mode_colors <- base_colors[names(base_colors) %in% unique_modes]
+        # Handle unknown modes
         new_modes <- setdiff(unique_modes, names(mode_colors))
         if (length(new_modes) > 0) {
           new_colors <- scales::hue_pal()(length(new_modes))
@@ -444,11 +401,25 @@ function(app_args) {
           mode_colors <- c(mode_colors, new_colors)
         }
 
-        # Accumulate for global legend
-        for (m in unique_modes) {
-          all_legend_values <<- c(all_legend_values, paste0(legend_prefix, m))
-          all_legend_colors <<- c(all_legend_colors, as.character(mode_colors[m]))
-        }
+        # Build legend title with execution time
+        time_str <- if (!is.null(time_val)) sprintf("<div style='font-size:10px; color:#777; margin-bottom:2px;'>Time: %dms</div>", round(time_val * 1000)) else ""
+        leg_title <- shiny::HTML(paste0(time_str, "<b>", title_prefix, "</b>"))
+
+        # Calculate totals for the summary item
+        total_dur <- round(sum(first_option$duration, na.rm = TRUE), 1)
+        total_dist <- round(sum(first_option$distance, na.rm = TRUE) / 1000, 2)
+        summary_label <- sprintf("Total: %g min, %g km", total_dur, total_dist)
+
+        mapgl::add_legend(
+          proxy,
+          legend_title = leg_title,
+          values = c(names(mode_colors), summary_label),
+          colors = c(as.character(mode_colors), "rgba(0,0,0,0)"),
+          type = "categorical",
+          position = pos,
+          unique_id = legend_id,
+          add = TRUE
+        )
 
         mapgl::add_line_layer(
           proxy,
@@ -467,35 +438,20 @@ function(app_args) {
       }
 
       if (is_comparing) {
-        draw_route_layer(res$res1, "route_layer_1", "1: ")
-        draw_route_layer(res$res2, "route_layer_2", "2: ")
+        draw_route_layer(res$res1, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", "Route 1")
+        draw_route_layer(res$res2, "route_layer_2", palette2, "top-right", r5r_exec_time_2(), "legend_2", "Route 2")
       } else {
-        draw_route_layer(res, "route_layer")
-      }
-      
-      # Add combined legend if we have values
-      if (length(all_legend_values) > 0) {
-        mapgl::add_legend(
-          proxy,
-          legend_title = "Travel Mode",
-          values = all_legend_values,
-          colors = all_legend_colors,
-          type = "categorical"
-        )
+        draw_route_layer(res, "route_layer_1", palette1, "top-left", r5r_exec_time_1(), "legend_1", "Modes")
       }
       
       # Handle empty results notifications
       if (!is_comparing && !is.null(res) && nrow(res) == 0) {
-        shiny::showNotification("No route found. Try increasing walk time or checking points.", type = "warning")
+        shiny::showNotification("No route found.", type = "warning")
       } else if (is_comparing) {
         r1_empty <- is.null(res$res1) || nrow(res$res1) == 0
         r2_empty <- is.null(res$res2) || nrow(res$res2) == 0
         if (r1_empty && r2_empty) {
-          shiny::showNotification("No routes found for either selection.", type = "warning")
-        } else if (r1_empty) {
-          shiny::showNotification("Route 1 not found.", type = "warning")
-        } else if (r2_empty) {
-          shiny::showNotification("Route 2 not found.", type = "warning")
+          shiny::showNotification("No routes found.", type = "warning")
         }
       }
     })
@@ -625,11 +581,11 @@ function(app_args) {
           "  {network_arg_name} = {network_object_name_for_code},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
-          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1), collapse = \", \"), \")\")},\n",
-          "  departure_datetime = as.POSIXct(\"{input$departure_date_1} {input$departure_time_1}\", format = \"%Y-%m-%d %H:%M\"),\n",
-          "  time_window = {as.integer(input$time_window_1)}L,\n",
-          "  max_walk_time = {as.integer(input$max_walk_time_1)}L,\n",
-          "  max_trip_duration = {as.integer(input$max_trip_duration_1)}L,\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1_internal), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{input$departure_date_1_internal} {input$departure_time_1_internal}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window_1_internal)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time_1_internal)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration_1_internal)}L,\n",
           "  shortest_path = TRUE,\n",
           "  drop_geometry = FALSE\n",
           ")\n\n",
@@ -637,18 +593,18 @@ function(app_args) {
           "  {network_arg_name} = {network_object_name_for_code},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
-          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_2), collapse = \", \"), \")\")},\n",
-          "  departure_datetime = as.POSIXct(\"{input$departure_date_2} {input$departure_time_2}\", format = \"%Y-%m-%d %H:%M\"),\n",
-          "  time_window = {as.integer(input$time_window_2)}L,\n",
-          "  max_walk_time = {as.integer(input$max_walk_time_2)}L,\n",
-          "  max_trip_duration = {as.integer(input$max_trip_duration_2)}L,\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_2_internal), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{input$departure_date_2_internal} {input$departure_time_2_internal}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window_2_internal)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time_2_internal)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration_2_internal)}L,\n",
           "  shortest_path = TRUE,\n",
           "  drop_geometry = FALSE\n",
           ")\n\n",
           "# View both travel options on a map\n",
           "mapgl::maplibre(style = mapgl::carto_style(\"voyager\")) |>\n",
           "  mapgl::add_line_layer(id = \"route1\", source = itinerary1[itinerary1$option == 1, ], line_color = \"#2f4b7c\", line_width = 5) |>\n",
-          "  mapgl::add_line_layer(id = \"route2\", source = itinerary2[itinerary2$option == 1, ], line_color = \"#ffa600\", line_width = 5)"
+          "  mapgl::add_line_layer(id = \"route2\", source = itinerary2[itinerary2$option == 1, ], line_color = \"#1b4332\", line_width = 5)"
         )
       } else {
         itinerary_call <- glue::glue(
@@ -656,11 +612,11 @@ function(app_args) {
           "  {network_arg_name} = {network_object_name_for_code},\n",
           "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
           "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
-          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode), collapse = \", \"), \")\")},\n",
-          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
-          "  time_window = {as.integer(input$time_window)}L,\n",
-          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
-          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1_internal), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{input$departure_date_1_internal} {input$departure_time_1_internal}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window_1_internal)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time_1_internal)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration_1_internal)}L,\n",
           "  shortest_path = TRUE,\n",
           "  drop_geometry = FALSE\n",
           ")\n\n",
