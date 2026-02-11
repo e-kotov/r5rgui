@@ -10,6 +10,7 @@
     * Refactored layout into a 3-column design with collapsible and resizable sidebars.
     * Moved control buttons to a dedicated toolbar.
     * Repositioned notifications to the bottom-right to prevent overlap.
+    * `mapgl` basemaps support
 * **Reproducible Code**: Updated "Copy R Code" to generate script for both single and dual routing requests, correctly referencing specific network objects from the list.
 * Added `Quit` button to exit the application.
 * Improved error handling and notifications for routing failures.
