@@ -7,15 +7,23 @@ routing.
 ## Usage
 
 ``` r
-r5r_gui(r5r_network, center = NULL, zoom = NULL, departure_date = Sys.Date())
+r5r_gui(
+  r5r_network,
+  center = NULL,
+  zoom = NULL,
+  departure_date = Sys.Date(),
+  mode = c("WALK", "TRANSIT")
+)
 ```
 
 ## Arguments
 
 - r5r_network:
 
-  A pre-built 'r5r' network object. This object contains the street and
-  transit network data required for routing calculations.
+  A pre-built 'r5r' network object, or a named list of such objects for
+  comparison. If a list is provided, the list names will be used as
+  labels in the GUI. If a single object is provided, its variable name
+  will be used as the label.
 
 - center:
 
@@ -35,6 +43,15 @@ r5r_gui(r5r_network, center = NULL, zoom = NULL, departure_date = Sys.Date())
 
   A Date object specifying the initial departure date for the trip.
   Defaults to the current system date.
+
+- mode:
+
+  A character vector specifying the initial transport modes. This is
+  passed directly to the `mode` argument in
+  [detailed_itineraries()](https://ipeagit.github.io/r5r/reference/detailed_itineraries.html)
+  (and other functions of
+  [`r5r`](https://ipeagit.github.io/r5r/reference/r5r.html)). Defaults
+  to `c("WALK", "TRANSIT")`.
 
 ## Value
 
@@ -59,9 +76,17 @@ if (interactive()) {
   # Launch with a specific departure date with auto-zoom and center
   r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 
+  # Launch with specific transport modes
+  r5r_gui(r5r_network, mode = c("WALK", "BUS"))
+
   # Manually define map center and zoom
   map_center <- c(-51.22, -30.05)
   map_zoom <- 11
   r5r_gui(r5r_network, center = map_center, zoom = map_zoom)
+  
+  # Compare two networks
+  # Note: For this example, we use the same network object twice. 
+  # In a real scenario, you would use two different networks (e.g. current vs future).
+  r5r_gui(list("Baseline" = r5r_network, "Scenario A" = r5r_network))
 }
 ```

@@ -42,9 +42,26 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="r5rgui-development-version">r5rgui (development version)<a class="anchor" aria-label="anchor" href="#r5rgui-development-version"></a></h2>
-<ul><li><p>Added <code>Quit</code> button to exit the application</p></li>
-<li><p>Information banners about routes being calcualted and other ongoing async processes appear a bit lower now in order not to cover the new <code>Quit</code> button and other future buttons that might be added to the top row of the app.</p></li>
-<li><p>When no route is built and displayed on the map, <code>Copy R Code</code> button shows a warning right beside it.</p></li>
+<ul><li>
+<strong>New Compare Mode</strong>: Added a toggle to switch between Normal and Compare modes, allowing users to compare two routes side-by-side with independent settings.</li>
+<li>
+<strong>Multi-Graph Support</strong>: <code><a href="../reference/r5r_gui.html">r5r_gui()</a></code> now accepts a named list of <code>r5r_network</code> objects, enabling comparison of different network scenarios (e.g., “Current” vs. “Future”).</li>
+<li>
+<strong>Enhanced Visualization</strong>:
+<ul><li>Map legends now display routing execution times and summary statistics (total duration/distance).</li>
+<li>In Compare Mode, two independent legends are shown in the top corners for easy comparison.</li>
+<li>Route 1 and Route 2 use distinct color palettes (Blue/Orange vs. Green/Teal).</li>
+</ul></li>
+<li>
+<strong>UI Improvements</strong>:
+<ul><li>Refactored layout into a 3-column design with collapsible and resizable sidebars.</li>
+<li>Moved control buttons to a dedicated toolbar.</li>
+<li>Repositioned notifications to the bottom-right to prevent overlap.</li>
+</ul></li>
+<li>
+<strong>Reproducible Code</strong>: Updated “Copy R Code” to generate script for both single and dual routing requests, correctly referencing specific network objects from the list.</li>
+<li>Added <code>Quit</code> button to exit the application.</li>
+<li>Improved error handling and notifications for routing failures.</li>
 </ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="r5rgui-010">r5rgui 0.1.0<a class="anchor" aria-label="anchor" href="#r5rgui-010"></a></h2><p class="text-muted">CRAN release: 2025-11-25</p>

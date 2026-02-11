@@ -10,8 +10,15 @@ default map settings (center and zoom) appropriate for the sample data.
 ## Usage
 
 ``` r
-r5r_gui_demo()
+r5r_gui_demo(mode = c("WALK", "TRANSIT"))
 ```
+
+## Arguments
+
+- mode:
+
+  A character vector specifying the initial transport modes. Defaults to
+  `c("WALK", "TRANSIT")`.
 
 ## Value
 
@@ -34,5 +41,8 @@ connection.
 if (interactive()) {
   # To run the demo application, simply call the function:
   r5r_gui_demo()
+
+  # Run with specific transport modes
+  r5r_gui_demo(mode = c("WALK", "BUS"))
 }
 ```
