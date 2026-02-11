@@ -115,6 +115,9 @@ r5r_gui <- function(
       message(
         "Please update 'r5r' to version 2.4.0 or newer for better performance."
       )
+      message(
+        "Alternatively, provide 'center' and 'zoom' arguments manually to skip this calculation."
+      )
       bbox <- sf::st_bbox(r5r::street_network_to_sf(primary_network)$edges)
     }
     center <- c(
