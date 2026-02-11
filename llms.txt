@@ -52,22 +52,10 @@ library(r5rgui)
 r5r_gui_demo()
 ```
 
-![Work with multiple R5R
-networks](reference/figures/01-multiple-networks.png)
+![r5rgui
+demo](https://github.com/user-attachments/assets/7a2036ac-4b78-487a-93bb-593562d14d45)
 
-Work with multiple R5R networks
-
-![Compare routes from different R5R
-networks](reference/figures/02-multiple-routes.png)
-
-Compare routes from different R5R networks
-
-![Explore transport modes](reference/figures/03-mulitple-modes.png)
-
-Explore transport modes
-
-[![r5gui demo in
-action](reference/figures/01-multiple-networks.png)](https://github.com/user-attachments/assets/5852c1e8-acfd-46a6-a76d-34af75af174b)
+r5rgui demo
 
 What the demo runs internally is this simple example code:
 
