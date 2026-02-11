@@ -8,7 +8,7 @@ message: 'To cite package "r5rgui" in publications use:'
 type: software
 license: MIT
 title: 'r5rgui: Graphical User Interface for ''r5r'' Router'
-version: 0.1.0
+version: 0.2.0
 doi: 10.32614/CRAN.package.r5rgui
 identifiers:
 - type: doi
@@ -77,7 +77,7 @@ references:
     given-names: Garrick
     email: garrick@posit.co
     orcid: https://orcid.org/0000-0002-7111-0077
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.DT
 - type: software
   title: mapgl
@@ -89,7 +89,7 @@ references:
   - family-names: Walker
     given-names: Kyle
     email: kyle@walker-data.com
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.mapgl
 - type: software
   title: r5r
@@ -117,7 +117,7 @@ references:
     given-names: Matthew Wigginton
     email: mwbc@unc.edu
     orcid: https://orcid.org/0000-0002-1210-2982
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.r5r
 - type: software
   title: sf
@@ -130,7 +130,7 @@ references:
     given-names: Edzer
     email: edzer.pebesma@uni-muenster.de
     orcid: https://orcid.org/0000-0001-8049-7069
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.sf
 - type: software
   title: shiny
@@ -157,6 +157,10 @@ references:
     given-names: Barret
     email: barret@posit.co
     orcid: https://orcid.org/0000-0001-9986-114X
+  - family-names: Aden-Buie
+    given-names: Garrick
+    email: garrick@adenbuie.com
+    orcid: https://orcid.org/0000-0002-7111-0077
   - family-names: Xie
     given-names: Yihui
     email: yihui@posit.co
@@ -169,7 +173,7 @@ references:
     given-names: Alan
   - family-names: Borges
     given-names: Barbara
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.shiny
 - type: software
   title: mockery
@@ -187,7 +191,7 @@ references:
   - family-names: Wickham
     given-names: Hadley
     email: hadley@rstudio.com
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.mockery
 - type: software
   title: quarto
@@ -204,7 +208,7 @@ references:
     given-names: Christophe
     email: cderv@posit.co
     orcid: https://orcid.org/0000-0003-4474-2498
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.quarto
 - type: software
   title: rlang
@@ -219,7 +223,7 @@ references:
   - family-names: Wickham
     given-names: Hadley
     email: hadley@posit.co
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.rlang
 - type: software
   title: shinytest2
@@ -232,7 +236,7 @@ references:
     given-names: Barret
     email: barret@posit.co
     orcid: https://orcid.org/0000-0001-9986-114X
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.shinytest2
 - type: software
   title: testthat
@@ -244,7 +248,7 @@ references:
   - family-names: Wickham
     given-names: Hadley
     email: hadley@posit.co
-  year: '2025'
+  year: '2026'
   doi: 10.32614/CRAN.package.testthat
   version: '>= 3.0.0'
 

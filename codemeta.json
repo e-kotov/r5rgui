@@ -8,7 +8,7 @@
   "codeRepository": "https://github.com/e-kotov/r5rgui",
   "issueTracker": "https://github.com/e-kotov/r5rgui/issues",
   "license": "https://spdx.org/licenses/MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "programmingLanguage": {
     "@type": "ComputerLanguage",
     "name": "R",
@@ -174,7 +174,7 @@
     },
     "SystemRequirements": null
   },
-  "fileSize": "351730.048KB",
+  "fileSize": "351897.272KB",
   "citation": [
     {
       "@type": "SoftwareSourceCode",
