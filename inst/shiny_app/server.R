@@ -31,6 +31,37 @@ function(app_args) {
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
     r5r_exec_time <- shiny::reactiveVal(NULL)
+    compare_mode <- shiny::reactiveVal(FALSE)
+
+    output$compare_mode_ui <- shiny::renderUI({
+      active <- compare_mode()
+      label <- if (active) "Mode: Compare" else "Mode: Normal"
+      color <- if (active) "#984ea3" else "#3b82f6"
+      
+      shiny::actionButton(
+        "toggle_compare",
+        label,
+        style = sprintf("background-color: %s; color: white; border-width: 0px;", color)
+      )
+    })
+
+    shiny::observeEvent(input$toggle_compare, {
+      compare_mode(!compare_mode())
+    })
+
+    # Keep a hidden input for conditional panel in UI
+    shiny::observe({
+      session$sendCustomMessage("updateCompareMode", compare_mode())
+    })
+
+    # Sync mode inputs when switching
+    shiny::observeEvent(compare_mode(), {
+      if (compare_mode()) {
+        shiny::updateSelectInput(session, "mode_1", selected = input$mode)
+      } else {
+        shiny::updateSelectInput(session, "mode", selected = input$mode_1)
+      }
+    })
 
     output$copy_code_message_ui <- shiny::renderUI({
       copy_code_message()
@@ -186,9 +217,12 @@ function(app_args) {
       shiny::updateTextInput(session, "end_coords_input", value = "")
       proxy <- mapgl::maplibre_proxy("map")
       mapgl::clear_layer(proxy, "route_layer")
+      mapgl::clear_layer(proxy, "route_layer_1")
+      mapgl::clear_layer(proxy, "route_layer_2")
       mapgl::clear_legend(proxy)
       copy_code_message(NULL)
       r5r_exec_time(NULL)
+      compare_mode(FALSE)
     })
 
     # --- OBSERVERS TO CLEAR COPY CODE MESSAGE ---
@@ -221,7 +255,7 @@ function(app_args) {
       ignoreInit = TRUE
     )
 
-    # --- ROUTE CALCULATION (unchanged) ---
+    # --- ROUTE CALCULATION ---
     route_data <- shiny::eventReactive(
       list(
         locations$start,
@@ -231,18 +265,31 @@ function(app_args) {
         input$time_window,
         input$max_walk_time,
         input$max_trip_duration,
-        input$mode
+        input$mode,
+        input$mode_1,
+        input$mode_2,
+        compare_mode()
       ),
       {
         shiny::req(
           locations$start,
           locations$end,
           input$max_walk_time,
-          input$max_trip_duration,
-          input$mode
+          input$max_trip_duration
         )
+        
+        is_comparing <- compare_mode()
+        modes_to_use <- if (is_comparing) list(m1 = input$mode_1, m2 = input$mode_2) else list(m = input$mode)
+        
+        # Validate that modes are not empty
+        if (is_comparing) {
+          shiny::req(length(modes_to_use$m1) > 0, length(modes_to_use$m2) > 0)
+        } else {
+          shiny::req(length(modes_to_use$m) > 0)
+        }
+
         shiny::showNotification(
-          "Calculating route...",
+          if (is_comparing) "Calculating routes (Compare Mode)..." else "Calculating route...",
           duration = 3,
           type = "message"
         )
@@ -263,23 +310,19 @@ function(app_args) {
         )
 
         if (is.na(departure_datetime)) {
-          shiny::showNotification(
-            "Invalid date or time format.",
-            type = "error"
-          )
+          shiny::showNotification("Invalid date or time format.", type = "error")
           return(NULL)
         }
 
-        t0 <- Sys.time()
-        res <- tryCatch(
-          {
-            # Add backward compatibility for r5r versions < 2.3.0
+        run_routing <- function(modes) {
+          # Ensure r5r_network is accessible (it should be via lexical scoping)
+          tryCatch({
             if (utils::packageVersion("r5r") >= "2.3.0") {
               r5r::detailed_itineraries(
                 r5r_network = r5r_network,
                 origins = origin,
                 destinations = destination,
-                mode = input$mode,
+                mode = modes,
                 departure_datetime = departure_datetime,
                 time_window = as.integer(input$time_window),
                 max_walk_time = as.integer(input$max_walk_time),
@@ -292,7 +335,7 @@ function(app_args) {
                 r5r_core = r5r_network,
                 origins = origin,
                 destinations = destination,
-                mode = input$mode,
+                mode = modes,
                 departure_datetime = departure_datetime,
                 time_window = as.integer(input$time_window),
                 max_walk_time = as.integer(input$max_walk_time),
@@ -301,80 +344,132 @@ function(app_args) {
                 drop_geometry = FALSE
               )
             }
-          },
-          error = function(e) {
-            shiny::showNotification(
-              paste("Error calculating route:", e$message),
-              type = "error"
-            )
+          }, error = function(e) {
+            warning("r5r error: ", e$message)
             return(NULL)
-          }
-        )
+          })
+        }
+
+        t0 <- Sys.time()
+        if (is_comparing) {
+          res1 <- run_routing(modes_to_use$m1)
+          res2 <- run_routing(modes_to_use$m2)
+          res <- list(res1 = res1, res2 = res2)
+        } else {
+          res <- run_routing(modes_to_use$m)
+        }
         r5r_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
+        
         return(res)
       }
     )
 
-    # --- MAP DRAWING OBSERVER (unchanged) ---
+    # --- MAP DRAWING OBSERVER ---
     shiny::observe({
       proxy <- mapgl::maplibre_proxy("map")
       mapgl::clear_layer(proxy, "route_layer")
+      mapgl::clear_layer(proxy, "route_layer_1")
+      mapgl::clear_layer(proxy, "route_layer_2")
       mapgl::clear_legend(proxy)
 
-      detailed_route <- route_data()
+      res <- route_data()
+      if (is.null(res)) return()
 
-      if (!is.null(detailed_route) && nrow(detailed_route) > 0) {
-        first_option <- detailed_route[detailed_route$option == 1, ]
+      is_comparing <- compare_mode()
 
-        unique_modes <- unique(first_option$mode)
-        base_colors <- c(
-          "WALK" = "#2f4b7c",
-          "BUS" = "#ffa600",
-          "RAIL" = "#665191",
-          "SUBWAY" = "#d45087"
-        )
-        mode_colors <- base_colors[names(base_colors) %in% unique_modes]
+      draw_route <- function(detailed_route, layer_id, legend_prefix = "") {
+        if (!is.null(detailed_route) && nrow(detailed_route) > 0) {
+          # Use option 1 if available
+          first_option <- if ("option" %in% names(detailed_route)) {
+            detailed_route[detailed_route$option == 1, ]
+          } else {
+            detailed_route
+          }
+          
+          if (nrow(first_option) == 0) return()
 
-        new_modes <- setdiff(unique_modes, names(mode_colors))
-        if (length(new_modes) > 0) {
-          new_colors <- scales::hue_pal()(length(new_modes))
-          names(new_colors) <- new_modes
-          mode_colors <- c(mode_colors, new_colors)
-        }
+          unique_modes <- unique(as.character(first_option$mode))
+          base_colors <- c(
+            "WALK" = "#2f4b7c",
+            "BUS" = "#ffa600",
+            "RAIL" = "#665191",
+            "SUBWAY" = "#d45087",
+            "CAR" = "#a05195",
+            "BICYCLE" = "#70ad47"
+          )
+          mode_colors <- base_colors[names(base_colors) %in% unique_modes]
 
-        mapgl::add_legend(
-          proxy,
-          legend_title = "Travel Mode",
-          values = names(mode_colors),
-          colors = as.character(mode_colors),
-          type = "categorical"
-        )
+          new_modes <- setdiff(unique_modes, names(mode_colors))
+          if (length(new_modes) > 0) {
+            new_colors <- scales::hue_pal()(length(new_modes))
+            names(new_colors) <- new_modes
+            mode_colors <- c(mode_colors, new_colors)
+          }
 
-        mapgl::add_line_layer(
-          proxy,
-          id = "route_layer",
-          source = first_option,
-          line_color = mapgl::match_expr(
-            column = "mode",
+          mapgl::add_legend(
+            proxy,
+            legend_title = paste0(legend_prefix, "Travel Mode"),
             values = names(mode_colors),
-            stops = as.character(mode_colors),
-            default = "gray"
-          ),
-          line_width = 5,
-          line_opacity = 0.8,
-          tooltip = "mode"
-        )
-      } else if (!is.null(route_data()) && nrow(route_data()) == 0) {
-        shiny::showNotification("No route found.", type = "warning")
+            colors = as.character(mode_colors),
+            type = "categorical"
+          )
+
+          mapgl::add_line_layer(
+            proxy,
+            id = layer_id,
+            source = first_option,
+            line_color = mapgl::match_expr(
+              column = "mode",
+              values = names(mode_colors),
+              stops = as.character(mode_colors),
+              default = "gray"
+            ),
+            line_width = 5,
+            line_opacity = 0.8,
+            tooltip = "mode"
+          )
+        }
+      }
+
+      if (is_comparing) {
+        draw_route(res$res1, "route_layer_1", "1: ")
+        draw_route(res$res2, "route_layer_2", "2: ")
+      } else {
+        draw_route(res, "route_layer")
+      }
+      
+      # Handle empty results notifications
+      if (!is_comparing && !is.null(res) && nrow(res) == 0) {
+        shiny::showNotification("No route found. Try increasing walk time or checking points.", type = "warning")
+      } else if (is_comparing) {
+        r1_empty <- is.null(res$res1) || nrow(res$res1) == 0
+        r2_empty <- is.null(res$res2) || nrow(res$res2) == 0
+        if (r1_empty && r2_empty) {
+          shiny::showNotification("No routes found for either selection.", type = "warning")
+        } else if (r1_empty) {
+          shiny::showNotification("Route 1 not found.", type = "warning")
+        } else if (r2_empty) {
+          shiny::showNotification("Route 2 not found.", type = "warning")
+        }
       }
     })
 
-    # --- ITINERARY TABLE RENDERER (unchanged) ---
+    # --- ITINERARY TABLE RENDERER ---
     output$itinerary_table <- DT::renderDataTable({
-      detailed_route <- route_data()
+      res <- route_data()
+      shiny::req(!is.null(res))
+      
+      detailed_route <- if (compare_mode()) res$res1 else res
       shiny::req(!is.null(detailed_route), nrow(detailed_route) > 0)
 
-      first_option_df <- detailed_route[detailed_route$option == 1, ]
+      # Show first option
+      first_option_df <- if ("option" %in% names(detailed_route)) {
+        detailed_route[detailed_route$option == 1, ]
+      } else {
+        detailed_route
+      }
+      
+      display_df <- sf::st_drop_geometry(first_option_df)
       display_df <- sf::st_drop_geometry(first_option_df)
 
       cols_to_show <- c(
@@ -457,31 +552,58 @@ function(app_args) {
         )
       }
 
+      is_comparing <- compare_mode()
+
       # Use glue to construct the detailed_itineraries call
-      itinerary_call <- glue::glue(
-        "itinerary <- r5r::detailed_itineraries(\n",
-        "  {network_arg_name} = {network_object_name_for_code},\n",
-        "  origins = data.frame(\n",
-        "    id = \"start_point\",\n",
-        "    lat = {locations$start$lat},\n",
-        "    lon = {locations$start$lon}\n",
-        "  ),\n",
-        "  destinations = data.frame(\n",
-        "    id = \"end_point\",\n",
-        "    lat = {locations$end$lat},\n",
-        "    lon = {locations$end$lon}\n",
-        "  ),\n",
-        "  mode = {paste0(\"c(\", paste0(shQuote(input$mode), collapse = \", \"), \")\")},\n",
-        "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
-        "  time_window = {as.integer(input$time_window)}L,\n",
-        "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
-        "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
-        "  shortest_path = TRUE,\n",
-        "  drop_geometry = FALSE\n",
-        ")\n\n",
-        "# View the first travel option on a map\n",
-        "mapgl::maplibre_view(itinerary[itinerary$option == 1, ], column = \"mode\")"
-      )
+      if (is_comparing) {
+        itinerary_call <- glue::glue(
+          "itinerary1 <- r5r::detailed_itineraries(\n",
+          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
+          "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_1), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  shortest_path = TRUE,\n",
+          "  drop_geometry = FALSE\n",
+          ")\n\n",
+          "itinerary2 <- r5r::detailed_itineraries(\n",
+          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
+          "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode_2), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  shortest_path = TRUE,\n",
+          "  drop_geometry = FALSE\n",
+          ")\n\n",
+          "# View both travel options on a map\n",
+          "mapgl::maplibre(style = mapgl::carto_style(\"voyager\")) |>\n",
+          "  mapgl::add_line_layer(id = \"route1\", source = itinerary1[itinerary1$option == 1, ], line_color = \"#2f4b7c\", line_width = 5) |>\n",
+          "  mapgl::add_line_layer(id = \"route2\", source = itinerary2[itinerary2$option == 1, ], line_color = \"#ffa600\", line_width = 5)"
+        )
+      } else {
+        itinerary_call <- glue::glue(
+          "itinerary <- r5r::detailed_itineraries(\n",
+          "  {network_arg_name} = {network_object_name_for_code},\n",
+          "  origins = data.frame(id = \"start_point\", lat = {locations$start$lat}, lon = {locations$start$lon}),\n",
+          "  destinations = data.frame(id = \"end_point\", lat = {locations$end$lat}, lon = {locations$end$lon}),\n",
+          "  mode = {paste0(\"c(\", paste0(shQuote(input$mode), collapse = \", \"), \")\")},\n",
+          "  departure_datetime = as.POSIXct(\"{departure_datetime_str}\", format = \"%Y-%m-%d %H:%M\"),\n",
+          "  time_window = {as.integer(input$time_window)}L,\n",
+          "  max_walk_time = {as.integer(input$max_walk_time)}L,\n",
+          "  max_trip_duration = {as.integer(input$max_trip_duration)}L,\n",
+          "  shortest_path = TRUE,\n",
+          "  drop_geometry = FALSE\n",
+          ")\n\n",
+          "# View the first travel option on a map\n",
+          "mapgl::maplibre_view(itinerary[itinerary$option == 1, ], column = \"mode\")"
+        )
+      }
 
       code_string <- paste0(setup_code, itinerary_call)
 

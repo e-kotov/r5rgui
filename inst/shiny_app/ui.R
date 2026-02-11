@@ -1,30 +1,37 @@
 # --- UI DEFINITION (With notification styling) ---
 ui <- shiny::fluidPage(
-  # Wrap the header in a div with relative positioning
+  # Row 1: App Title
   shiny::div(
-    style = "display: flex; justify-content: space-between; align-items: center; padding: 10px 0;",
-    # Flex container for logo and title
+    style = "padding: 10px 0; border-bottom: 1px solid #eee;",
     shiny::div(
       style = "display: flex; align-items: center;",
       shiny::img(
         src = "r5rgui_assets/logo.png",
-        height = "50px",
+        height = "40px",
         style = "margin-right: 15px;"
       ),
-      shiny::h2(
+      shiny::h3(
         shiny::HTML(
-          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code> and <code>{mapgl}</code>"
+          "<b>r5rgui</b> - Interactive Routing with <code>{r5r}</code>"
         ),
         style = "margin: 0;"
       )
-    ),
-    # Quit button is now a flex item and will be vertically centered
+    )
+  ),
+  
+  # Row 2: Control Buttons
+  shiny::div(
+    style = "display: flex; justify-content: flex-end; align-items: center; padding: 10px 0; gap: 10px;",
+    shiny::uiOutput("compare_mode_ui"),
     shiny::actionButton(
       "quit_app",
       "Quit",
-      style = "background-color: #0e8bb2; color: white; border-width: 0px;"
-    )
+      style = "background-color: #d9534f; color: white; border-width: 0px;"
+    ),
+    # Hidden input for Compare Mode state
+    shiny::div(style = "display: none;", shiny::checkboxInput("compare_mode", NULL, value = FALSE))
   ),
+
   shiny::tags$head(
     # --- CSS for notifications and button positioning ---
     shiny::tags$style(shiny::HTML(
@@ -36,24 +43,17 @@ ui <- shiny::fluidPage(
         bottom: auto;
       }
       
-      /* Wrapper to create a positioning context for the button */
       .map-wrapper {
         position: relative;
       }
-      
-      /* Style for the button placed on the map */
-      /* This is now handled by an inline style on the container div */
-      /* .map-wrapper .btn {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        z-index: 10; /* Ensures the button is on top of the map */
-      } */
     "
     )),
     shiny::tags$script(shiny::HTML(
-      # MODIFIED HERE
       "
+    Shiny.addCustomMessageHandler('updateCompareMode', function(value) {
+      $('#compare_mode').prop('checked', value).change();
+    });
+
     function initializeMapListeners(mapId) {
       const mapElement = document.getElementById(mapId);
       if (!mapElement) return;
@@ -139,28 +139,50 @@ ui <- shiny::fluidPage(
     shiny::sidebarPanel(
       width = 3,
       shiny::h4("Trip Parameters"),
-      shiny::selectInput(
-        "mode",
-        "Transport Modes",
-        choices = c(
-          "WALK",
-          "BICYCLE",
-          "CAR",
-          "BICYCLE_RENT",
-          "CAR_PARK",
-          "TRANSIT",
-          "TRAM",
-          "SUBWAY",
-          "RAIL",
-          "BUS",
-          "FERRY",
-          "CABLE_CAR",
-          "GONDOLA",
-          "FUNICULAR"
-        ),
-        selected = c("WALK", "TRANSIT"),
-        multiple = TRUE
+      
+      # Normal Mode Input
+      shiny::conditionalPanel(
+        condition = "!input.compare_mode",
+        shiny::selectInput(
+          "mode",
+          "Transport Modes",
+          choices = c(
+            "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
+            "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
+            "CABLE_CAR", "GONDOLA", "FUNICULAR"
+          ),
+          selected = c("WALK", "TRANSIT"),
+          multiple = TRUE
+        )
       ),
+      
+      # Compare Mode Inputs
+      shiny::conditionalPanel(
+        condition = "input.compare_mode",
+        shiny::selectInput(
+          "mode_1",
+          "Transport Modes 1",
+          choices = c(
+            "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
+            "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
+            "CABLE_CAR", "GONDOLA", "FUNICULAR"
+          ),
+          selected = c("WALK", "TRANSIT"),
+          multiple = TRUE
+        ),
+        shiny::selectInput(
+          "mode_2",
+          "Transport Modes 2",
+          choices = c(
+            "WALK", "BICYCLE", "CAR", "BICYCLE_RENT", "CAR_PARK",
+            "TRANSIT", "TRAM", "SUBWAY", "RAIL", "BUS", "FERRY",
+            "CABLE_CAR", "GONDOLA", "FUNICULAR"
+          ),
+          selected = c("CAR"),
+          multiple = TRUE
+        )
+      ),
+
       shiny::dateInput(
         "departure_date",
         "Departure Date",
