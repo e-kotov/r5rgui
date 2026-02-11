@@ -1,4 +1,4 @@
-# r5rgui (development version)
+# r5rgui 0.2.0
 
 * **New Compare Mode**: Added a toggle to switch between Normal and Compare modes, allowing users to compare two routes side-by-side with independent settings.
 * **Multi-Graph Support**: `r5r_gui()` now accepts a named list of `r5r_network` objects, enabling comparison of different network scenarios (e.g., "Current" vs. "Future").
