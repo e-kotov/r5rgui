@@ -21,6 +21,13 @@ function(app_args) {
       value = app_args$departure_date
     )
 
+    # Update the transport mode input with the value from the function arguments
+    shiny::updateSelectInput(
+      session,
+      "mode",
+      selected = app_args$mode
+    )
+
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
     r5r_exec_time <- shiny::reactiveVal(NULL)

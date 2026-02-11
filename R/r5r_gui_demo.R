@@ -15,6 +15,8 @@
 #' Please note that `r5r` may need to download the sample data on first use,
 #' which requires an internet connection.
 #'
+#' @param mode A character vector specifying the initial transport modes. Defaults to `c("WALK", "TRANSIT")`.
+#'
 #' @return This function does not return a value; it launches a Shiny application.
 #' @export
 #'
@@ -22,9 +24,12 @@
 #' if (interactive()) {
 #'   # To run the demo application, simply call the function:
 #'   r5r_gui_demo()
+#'
+#'   # Run with specific transport modes
+#'   r5r_gui_demo(mode = c("WALK", "BUS"))
 #' }
 #'
-r5r_gui_demo <- function() {
+r5r_gui_demo <- function(mode = c("WALK", "TRANSIT")) {
   if (!check_r5r_available()) {
     stop(
       "The 'r5r' package is required to run this demo. Please install it first.",
@@ -78,7 +83,8 @@ r5r_gui_demo <- function() {
     r5r_network = r5r_network,
     center = map_center,
     zoom = map_zoom,
-    departure_date = departure_date
+    departure_date = departure_date,
+    mode = mode
   )
 }
 

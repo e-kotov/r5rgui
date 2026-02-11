@@ -7,6 +7,7 @@
 #' @param center A numeric vector of length 2, specifying the initial longitude and latitude for the map's center. If `NULL` (the default), the map will be centered on the bounding box of the `r5r_network`. If `{r5r}` is below version 2.4.0, calculating the bounding box may be slow.
 #' @param zoom An integer specifying the initial zoom level of the map. If `NULL` (the default), the zoom level will be automatically calculated to fit the bounding box of the `r5r_network`. If `{r5r}` is below version 2.4.0, calculating the bounding box may be slow.
 #' @param departure_date A Date object specifying the initial departure date for the trip. Defaults to the current system date.
+#' @param mode A character vector specifying the initial transport modes. This is passed directly to the `mode` argument in [detailed_itineraries()][r5r::detailed_itineraries] (and other functions of [`r5r`][r5r::r5r]). Defaults to `c("WALK", "TRANSIT")`.
 #'
 #' @return This function does not return a value; it launches a Shiny application.
 #'
@@ -29,6 +30,9 @@
 #'   # Launch with a specific departure date with auto-zoom and center
 #'   r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
 #'
+#'   # Launch with specific transport modes
+#'   r5r_gui(r5r_network, mode = c("WALK", "BUS"))
+#'
 #'   # Manually define map center and zoom
 #'   map_center <- c(-51.22, -30.05)
 #'   map_zoom <- 11
@@ -38,7 +42,8 @@ r5r_gui <- function(
   r5r_network,
   center = NULL,
   zoom = NULL,
-  departure_date = Sys.Date()
+  departure_date = Sys.Date(),
+  mode = c("WALK", "TRANSIT")
 ) {
   if (!check_r5r_available()) {
     stop(
@@ -98,7 +103,8 @@ r5r_gui <- function(
     r5r_network_name = r5r_network_name,
     center = center,
     zoom = zoom,
-    departure_date = departure_date
+    departure_date = departure_date,
+    mode = mode
   )
 
   # Use the factory to create the final server function

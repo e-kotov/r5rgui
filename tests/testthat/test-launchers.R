@@ -42,11 +42,12 @@ test_that("r5r_gui_demo() prepares correct arguments for r5r_gui", {
     .package = "r5r"
   )
 
-  r5r_gui_demo()
+  r5r_gui_demo(mode = c("WALK", "BUS"))
 
   expect_false(is.null(r5r_gui_args_captured))
   expect_equal(r5r_gui_args_captured$center, c(-51.22, -30.05))
   expect_equal(r5r_gui_args_captured$zoom, 11)
+  expect_equal(r5r_gui_args_captured$mode, c("WALK", "BUS"))
 })
 
 
@@ -57,6 +58,7 @@ test_that("r5r_gui() prepares arguments correctly for the shiny app", {
   dummy_center <- c(-51.22, -30.05)
   dummy_zoom <- 11
   dummy_date <- as.Date("2025-09-01")
+  dummy_mode <- c("WALK", "BUS")
 
   captured_server_function <- NULL
 
@@ -71,7 +73,8 @@ test_that("r5r_gui() prepares arguments correctly for the shiny app", {
     r5r_network = dummy_net,
     center = dummy_center,
     zoom = dummy_zoom,
-    departure_date = dummy_date
+    departure_date = dummy_date,
+    mode = dummy_mode
   )
 
   expect_false(
@@ -87,6 +90,7 @@ test_that("r5r_gui() prepares arguments correctly for the shiny app", {
   expect_identical(captured_args$center, dummy_center)
   expect_identical(captured_args$zoom, dummy_zoom)
   expect_identical(captured_args$departure_date, dummy_date)
+  expect_identical(captured_args$mode, dummy_mode)
   expect_identical(captured_args$r5r_network_name, "dummy_net")
 })
 

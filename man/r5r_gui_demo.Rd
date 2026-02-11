@@ -4,7 +4,10 @@
 \alias{r5r_gui_demo}
 \title{Run a Demonstration of the r5rgui Application}
 \usage{
-r5r_gui_demo()
+r5r_gui_demo(mode = c("WALK", "TRANSIT"))
+}
+\arguments{
+\item{mode}{A character vector specifying the initial transport modes. Defaults to \code{c("WALK", "TRANSIT")}.}
 }
 \value{
 This function does not return a value; it launches a Shiny application.
@@ -28,6 +31,9 @@ which requires an internet connection.
 if (interactive()) {
   # To run the demo application, simply call the function:
   r5r_gui_demo()
+
+  # Run with specific transport modes
+  r5r_gui_demo(mode = c("WALK", "BUS"))
 }
 
 }

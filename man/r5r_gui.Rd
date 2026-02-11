@@ -4,7 +4,13 @@
 \alias{r5r_gui}
 \title{Run the r5rgui Shiny Application}
 \usage{
-r5r_gui(r5r_network, center = NULL, zoom = NULL, departure_date = Sys.Date())
+r5r_gui(
+  r5r_network,
+  center = NULL,
+  zoom = NULL,
+  departure_date = Sys.Date(),
+  mode = c("WALK", "TRANSIT")
+)
 }
 \arguments{
 \item{r5r_network}{A pre-built 'r5r' network object. This object contains the street and transit network data required for routing calculations.}
@@ -14,6 +20,8 @@ r5r_gui(r5r_network, center = NULL, zoom = NULL, departure_date = Sys.Date())
 \item{zoom}{An integer specifying the initial zoom level of the map. If \code{NULL} (the default), the zoom level will be automatically calculated to fit the bounding box of the \code{r5r_network}. If \code{{r5r}} is below version 2.4.0, calculating the bounding box may be slow.}
 
 \item{departure_date}{A Date object specifying the initial departure date for the trip. Defaults to the current system date.}
+
+\item{mode}{A character vector specifying the initial transport modes. This is passed directly to the \code{mode} argument in \link[r5r:detailed_itineraries]{detailed_itineraries()} (and other functions of \code{\link[r5r:r5r]{r5r}}). Defaults to \code{c("WALK", "TRANSIT")}.}
 }
 \value{
 This function does not return a value; it launches a Shiny application.
@@ -38,6 +46,9 @@ if (interactive()) {
 
   # Launch with a specific departure date with auto-zoom and center
   r5r_gui(r5r_network, departure_date = as.Date("2019-05-13"))
+
+  # Launch with specific transport modes
+  r5r_gui(r5r_network, mode = c("WALK", "BUS"))
 
   # Manually define map center and zoom
   map_center <- c(-51.22, -30.05)
