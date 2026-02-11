@@ -376,66 +376,79 @@ function(app_args) {
       if (is.null(res)) return()
 
       is_comparing <- compare_mode()
+      
+      # Base color palette for common modes
+      base_colors <- c(
+        "WALK" = "#2f4b7c",
+        "BUS" = "#ffa600",
+        "RAIL" = "#665191",
+        "SUBWAY" = "#d45087",
+        "CAR" = "#a05195",
+        "BICYCLE" = "#70ad47"
+      )
 
-      draw_route <- function(detailed_route, layer_id, legend_prefix = "") {
-        if (!is.null(detailed_route) && nrow(detailed_route) > 0) {
-          # Use option 1 if available
-          first_option <- if ("option" %in% names(detailed_route)) {
-            detailed_route[detailed_route$option == 1, ]
-          } else {
-            detailed_route
-          }
-          
-          if (nrow(first_option) == 0) return()
+      # Helper to extract first option
+      get_first_option <- function(df) {
+        if (is.null(df) || nrow(df) == 0) return(NULL)
+        if ("option" %in% names(df)) df[df$option == 1, ] else df
+      }
 
-          unique_modes <- unique(as.character(first_option$mode))
-          base_colors <- c(
-            "WALK" = "#2f4b7c",
-            "BUS" = "#ffa600",
-            "RAIL" = "#665191",
-            "SUBWAY" = "#d45087",
-            "CAR" = "#a05195",
-            "BICYCLE" = "#70ad47"
-          )
-          mode_colors <- base_colors[names(base_colors) %in% unique_modes]
+      all_legend_values <- character()
+      all_legend_colors <- character()
 
-          new_modes <- setdiff(unique_modes, names(mode_colors))
-          if (length(new_modes) > 0) {
-            new_colors <- scales::hue_pal()(length(new_modes))
-            names(new_colors) <- new_modes
-            mode_colors <- c(mode_colors, new_colors)
-          }
+      draw_route_layer <- function(detailed_route, layer_id, legend_prefix = "") {
+        first_option <- get_first_option(detailed_route)
+        if (is.null(first_option) || nrow(first_option) == 0) return()
 
-          mapgl::add_legend(
-            proxy,
-            legend_title = paste0(legend_prefix, "Travel Mode"),
-            values = names(mode_colors),
-            colors = as.character(mode_colors),
-            type = "categorical"
-          )
-
-          mapgl::add_line_layer(
-            proxy,
-            id = layer_id,
-            source = first_option,
-            line_color = mapgl::match_expr(
-              column = "mode",
-              values = names(mode_colors),
-              stops = as.character(mode_colors),
-              default = "gray"
-            ),
-            line_width = 5,
-            line_opacity = 0.8,
-            tooltip = "mode"
-          )
+        unique_modes <- unique(as.character(first_option$mode))
+        
+        # Determine colors for this specific route's modes
+        mode_colors <- base_colors[names(base_colors) %in% unique_modes]
+        new_modes <- setdiff(unique_modes, names(mode_colors))
+        if (length(new_modes) > 0) {
+          new_colors <- scales::hue_pal()(length(new_modes))
+          names(new_colors) <- new_modes
+          mode_colors <- c(mode_colors, new_colors)
         }
+
+        # Accumulate for global legend
+        for (m in unique_modes) {
+          all_legend_values <<- c(all_legend_values, paste0(legend_prefix, m))
+          all_legend_colors <<- c(all_legend_colors, as.character(mode_colors[m]))
+        }
+
+        mapgl::add_line_layer(
+          proxy,
+          id = layer_id,
+          source = first_option,
+          line_color = mapgl::match_expr(
+            column = "mode",
+            values = names(mode_colors),
+            stops = as.character(mode_colors),
+            default = "gray"
+          ),
+          line_width = 5,
+          line_opacity = 0.8,
+          tooltip = "mode"
+        )
       }
 
       if (is_comparing) {
-        draw_route(res$res1, "route_layer_1", "1: ")
-        draw_route(res$res2, "route_layer_2", "2: ")
+        draw_route_layer(res$res1, "route_layer_1", "1: ")
+        draw_route_layer(res$res2, "route_layer_2", "2: ")
       } else {
-        draw_route(res, "route_layer")
+        draw_route_layer(res, "route_layer")
+      }
+      
+      # Add combined legend if we have values
+      if (length(all_legend_values) > 0) {
+        mapgl::add_legend(
+          proxy,
+          legend_title = "Travel Mode",
+          values = all_legend_values,
+          colors = all_legend_colors,
+          type = "categorical"
+        )
       }
       
       # Handle empty results notifications
