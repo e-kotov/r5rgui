@@ -1,6 +1,6 @@
 # Changelog
 
-## r5rgui (development version)
+## r5rgui 0.2.0
 
 - **New Compare Mode**: Added a toggle to switch between Normal and
   Compare modes, allowing users to compare two routes side-by-side with
@@ -21,6 +21,7 @@
     resizable sidebars.
   - Moved control buttons to a dedicated toolbar.
   - Repositioned notifications to the bottom-right to prevent overlap.
+  - `mapgl` basemaps support
 - **Reproducible Code**: Updated “Copy R Code” to generate script for
   both single and dual routing requests, correctly referencing specific
   network objects from the list.
