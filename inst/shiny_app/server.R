@@ -430,19 +430,41 @@ function(app_args) {
         }
 
         # Build legend title with execution time
-        time_str <- if (!is.null(time_val)) sprintf("<div style='font-size:10px; color:#777; margin-bottom:2px;'>Time: %dms</div>", round(time_val * 1000)) else ""
+        time_str <- if (!is.null(time_val)) sprintf("<div style='font-size:10px; color:#777; margin-bottom:2px;'>Query time: %dms</div>", round(time_val * 1000)) else ""
         leg_title <- shiny::HTML(paste0(time_str, "<b>", title_prefix, "</b>"))
 
         # Calculate totals for the summary item
-        total_dur <- round(sum(first_option$duration, na.rm = TRUE), 1)
-        total_dist <- round(sum(first_option$distance, na.rm = TRUE) / 1000, 2)
-        summary_label <- sprintf("Total: %g min, %g km", total_dur, total_dist)
+        # Use total_duration if available, otherwise sum segment_duration + wait
+        if ("total_duration" %in% names(first_option)) {
+           total_dur_min <- first_option$total_duration[1]
+        } else if ("segment_duration" %in% names(first_option)) {
+           total_dur_min <- sum(first_option$segment_duration, na.rm = TRUE) + sum(first_option$wait, na.rm = TRUE)
+        } else {
+           total_dur_min <- 0
+        }
+        
+        # Distance is usually sum of segment distances
+        total_dist_km <- round(sum(first_option$distance, na.rm = TRUE) / 1000, 2)
+        
+        # Format duration
+        if (total_dur_min > 60) {
+          hours <- floor(total_dur_min / 60)
+          mins <- round(total_dur_min %% 60)
+          dur_str <- sprintf("%dh %dm", hours, mins)
+        } else {
+          dur_str <- sprintf("%g min", round(total_dur_min, 1))
+        }
+        
+        summary_labels <- c(
+          sprintf("Time: %s", dur_str),
+          sprintf("Dist: %g km", total_dist_km)
+        )
 
         mapgl::add_legend(
           proxy,
           legend_title = leg_title,
-          values = c(names(mode_colors), summary_label),
-          colors = c(as.character(mode_colors), "rgba(0,0,0,0)"),
+          values = c(names(mode_colors), summary_labels),
+          colors = c(as.character(mode_colors), "rgba(0,0,0,0)", "rgba(0,0,0,0)"),
           type = "categorical",
           position = pos,
           unique_id = legend_id,
