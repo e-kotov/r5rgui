@@ -886,6 +886,13 @@ function(app_args) {
         min_acc <- min(cube_data$accessibility, na.rm = TRUE)
         max_acc <- max(cube_data$accessibility, na.rm = TRUE)
         if (min_acc == max_acc) max_acc <- min_acc + 1
+        
+        # Save bounds for slicing
+        bbox <- sf::st_bbox(cube_data)
+        mapgl_cube_bounds(list(
+          x = c(bbox["xmin"], bbox["xmax"]),
+          y = c(bbox["ymin"], bbox["ymax"])
+        ))
 
         mapgl::add_fill_extrusion_layer(
           proxy,
@@ -976,32 +983,58 @@ function(app_args) {
     # --- 3D SPACE-TIME CUBE PLOTLY RENDERERS ---
 
     cube_bounds <- shiny::reactiveVal(NULL)
+    mapgl_cube_bounds <- shiny::reactiveVal(NULL)
 
     shiny::observeEvent(list(input$slice_x, input$slice_y, input$slice_z), {
+      # Handle MapGL slicing
+      if (isTRUE(mapgl_3d_mode_val())) {
+        map_bounds <- mapgl_cube_bounds()
+        if (!is.null(map_bounds)) {
+          map_x_range <- map_bounds$x[1] + (map_bounds$x[2] - map_bounds$x[1]) * (input$slice_x / 100)
+          map_y_range <- map_bounds$y[1] + (map_bounds$y[2] - map_bounds$y[1]) * (input$slice_y / 100)
+          z_range <- input$slice_z
+          
+          proxy <- mapgl::maplibre_proxy("map")
+          mapgl::set_filter(
+            proxy, 
+            "spacetime_cube_layer",
+            list("all",
+                 list(">=", "lon", map_x_range[1]),
+                 list("<=", "lon", map_x_range[2]),
+                 list(">=", "lat", map_y_range[1]),
+                 list("<=", "lat", map_y_range[2]),
+                 list(">=", "hour", z_range[1]),
+                 list("<=", "hour", z_range[2])
+            )
+          )
+        }
+      }
+
+      # Handle Plotly slicing
       bounds <- cube_bounds()
-      shiny::req(bounds)
-
-      x_range <- bounds$x[1] + (bounds$x[2] - bounds$x[1]) * (input$slice_x / 100)
-      y_range <- bounds$y[1] + (bounds$y[2] - bounds$y[1]) * (input$slice_y / 100)
-      z_range <- input$slice_z
-
-      restyle_update <- list(
-        "transforms[0].value" = x_range[1],
-        "transforms[1].value" = x_range[2],
-        "transforms[2].value" = y_range[1],
-        "transforms[3].value" = y_range[2],
-        "transforms[4].value" = z_range[1],
-        "transforms[5].value" = z_range[2]
-      )
-
-      if (compare_mode()) {
-        plotly::plotlyProxy("space_time_cube_1", session) |>
-          plotly::plotlyProxyInvoke("restyle", restyle_update)
-        plotly::plotlyProxy("space_time_cube_2", session) |>
-          plotly::plotlyProxyInvoke("restyle", restyle_update)
-      } else {
-        plotly::plotlyProxy("space_time_cube", session) |>
-          plotly::plotlyProxyInvoke("restyle", restyle_update)
+      if (!is.null(bounds) && isTRUE(cube_mode())) {
+        x_range <- bounds$x[1] + (bounds$x[2] - bounds$x[1]) * (input$slice_x / 100)
+        y_range <- bounds$y[1] + (bounds$y[2] - bounds$y[1]) * (input$slice_y / 100)
+        z_range <- input$slice_z
+  
+        restyle_update <- list(
+          "transforms[0].value" = x_range[1],
+          "transforms[1].value" = x_range[2],
+          "transforms[2].value" = y_range[1],
+          "transforms[3].value" = y_range[2],
+          "transforms[4].value" = z_range[1],
+          "transforms[5].value" = z_range[2]
+        )
+  
+        if (compare_mode()) {
+          plotly::plotlyProxy("space_time_cube_1", session) |>
+            plotly::plotlyProxyInvoke("restyle", restyle_update)
+          plotly::plotlyProxy("space_time_cube_2", session) |>
+            plotly::plotlyProxyInvoke("restyle", restyle_update)
+        } else {
+          plotly::plotlyProxy("space_time_cube", session) |>
+            plotly::plotlyProxyInvoke("restyle", restyle_update)
+        }
       }
     }, ignoreInit = TRUE)
 

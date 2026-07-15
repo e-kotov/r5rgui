@@ -1123,13 +1123,14 @@ get_space_time_cube_data <- function(
         
         merged_grid <- merge(reachable_grid, acc_res, by = "id")
         
-        pts <- sf::st_as_sf(merged_grid, coords = c("lon", "lat"), crs = 4326)
+        pts <- sf::st_as_sf(merged_grid, coords = c("lon", "lat"), crs = 4326, remove = FALSE)
         pts_proj <- sf::st_transform(pts, epsg)
         polys <- sf::st_buffer(pts_proj, dist = 250, nQuadSeg = 2) 
         polys <- sf::st_transform(polys, 4326)
         
         polys$base_height <- (h - 6) * 200
         polys$top_height <- polys$base_height + 25
+        polys$hour <- h
         
         all_polys[[length(all_polys) + 1]] <- polys
       }
