@@ -1064,7 +1064,13 @@ get_space_time_cube_data <- function(
   if (!file.exists(poa_grid_file)) return(NULL)
   poa_grid <- read.csv(poa_grid_file)
 
-  poa_grid[[access_variable]][is.na(poa_grid[[access_variable]])] <- 0
+  if (access_variable %in% names(poa_grid)) {
+    poa_grid[[access_variable]][is.na(poa_grid[[access_variable]])] <- 0
+  }
+  demand_var <- if (access_variable == "population") "jobs" else "population"
+  if (demand_var %in% names(poa_grid)) {
+    poa_grid[[demand_var]][is.na(poa_grid[[demand_var]])] <- 0
+  }
 
   all_polys <- list()
   dep_hours <- 6:20 
@@ -1110,9 +1116,72 @@ get_space_time_cube_data <- function(
     
     acc_res <- tryCatch({
       if (access_metric == "cumulative") {
-        accessibility::cumulative_cutoff(ttm_all, poa_grid, access_variable, "travel_time", access_cutoff, fill_missing_ids = TRUE)
+        accessibility::cumulative_cutoff(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          travel_cost = "travel_time",
+          cutoff = access_cutoff,
+          fill_missing_ids = TRUE
+        )
+      } else if (access_metric == "cumulative_interval") {
+        accessibility::cumulative_interval(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          travel_cost = "travel_time",
+          interval = c(max(5, access_cutoff - 10), access_cutoff)
+        )
+      } else if (access_metric == "gravity") {
+        accessibility::gravity(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          travel_cost = "travel_time",
+          decay_function = accessibility::decay_exponential(decay_value = 0.1),
+          fill_missing_ids = TRUE
+        )
+      } else if (access_metric == "cost_to_closest") {
+        accessibility::cost_to_closest(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          travel_cost = "travel_time",
+          n = access_n_closest,
+          fill_missing_ids = TRUE
+        )
+      } else if (access_metric == "floating_catchment") {
+        accessibility::floating_catchment_area(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          demand = if (access_variable == "population") "jobs" else "population",
+          travel_cost = "travel_time",
+          method = "2sfca",
+          decay_function = accessibility::decay_binary(cutoff = access_cutoff),
+          fill_missing_ids = TRUE
+        )
+      } else if (access_metric == "spatial_availability") {
+        accessibility::spatial_availability(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          demand = if (access_variable == "population") "jobs" else "population",
+          travel_cost = "travel_time",
+          decay_function = accessibility::decay_exponential(decay_value = 0.1),
+          fill_missing_ids = TRUE
+        )
+      } else if (access_metric == "balancing_cost") {
+        accessibility::balancing_cost(
+          travel_matrix = ttm_all,
+          land_use_data = poa_grid,
+          opportunity = access_variable,
+          demand = if (access_variable == "population") "jobs" else "population",
+          travel_cost = "travel_time",
+          fill_missing_ids = TRUE
+        )
       } else {
-        NULL # Simplify for exploration
+        NULL
       }
     }, error = function(e) NULL)
     
