@@ -205,11 +205,11 @@ function(app_args) {
         mapgl::add_fullscreen_control(position = "bottom-right") |>
         mapgl::add_scale_control(position = "bottom-left", unit = "metric") |>
         mapgl::add_draw_control(
-          rectangle = TRUE,
+          rectangle = FALSE,
           freehand = FALSE,
           point = FALSE,
           line_string = FALSE,
-          polygon = FALSE,
+          polygon = TRUE,
           trash = TRUE
         )
     })
@@ -1002,9 +1002,8 @@ function(app_args) {
       if (isTRUE(mapgl_3d_mode_val())) {
         map_bounds <- mapgl_cube_bounds()
         if (!is.null(map_bounds)) {
-          # Default to full bounds
-          map_x_range <- map_bounds$x
-          map_y_range <- map_bounds$y
+          # Default to no spatial bounds filter
+          has_spatial_filter <- FALSE
           
           # Overwrite with drawn features if present
           if (!is.null(input$map_drawn_features) && length(input$map_drawn_features$features) > 0) {
@@ -1015,17 +1014,15 @@ function(app_args) {
               if (length(lons) > 0 && length(lats) > 0) {
                 map_x_range <- c(min(lons), max(lons))
                 map_y_range <- c(min(lats), max(lats))
+                has_spatial_filter <- TRUE
               }
             }, error = function(e) NULL)
           }
 
           z_range <- input$slice_z
           
-          proxy <- mapgl::maplibre_proxy("map")
-          mapgl::set_filter(
-            proxy, 
-            "spacetime_cube_layer",
-            list("all",
+          if (has_spatial_filter) {
+            filter_expr <- list("all",
                  list(">=", "lon", map_x_range[1]),
                  list("<=", "lon", map_x_range[2]),
                  list(">=", "lat", map_y_range[1]),
@@ -1033,7 +1030,15 @@ function(app_args) {
                  list(">=", "hour", z_range[1]),
                  list("<=", "hour", z_range[2])
             )
-          )
+          } else {
+            filter_expr <- list("all",
+                 list(">=", "hour", z_range[1]),
+                 list("<=", "hour", z_range[2])
+            )
+          }
+          
+          proxy <- mapgl::maplibre_proxy("map")
+          mapgl::set_filter(proxy, "spacetime_cube_layer", filter_expr)
         }
       }
     })

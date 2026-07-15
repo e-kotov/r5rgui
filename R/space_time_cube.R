@@ -1081,7 +1081,7 @@ get_space_time_cube_data <- function(
   }
 
   all_polys <- list()
-  dep_hours <- 6:20 
+  dep_hours <- 0:23 
   
   for (h in dep_hours) {
     hour_str <- sprintf("%02d:00:00", h)
@@ -1205,7 +1205,7 @@ get_space_time_cube_data <- function(
         polys <- sf::st_buffer(pts_proj, dist = 250, nQuadSeg = 2) 
         polys <- sf::st_transform(polys, 4326)
         
-        polys$base_height <- (h - 6) * 200
+        polys$base_height <- h * 200
         polys$top_height <- polys$base_height + 25
         polys$hour <- h
         
