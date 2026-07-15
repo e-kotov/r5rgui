@@ -216,6 +216,7 @@ function(app_args) {
 
     # --- COORDINATE HANDLING LOGIC ---
     shiny::observeEvent(input$map_click, {
+      if (isTRUE(mapgl_3d_mode_val())) return()
       coords <- list(lon = input$map_click$lng, lat = input$map_click$lat)
       coords <- list(lat = round(coords$lat, 5), lon = round(coords$lon, 5))
       locations$start <- coords
@@ -231,6 +232,7 @@ function(app_args) {
     })
 
     shiny::observeEvent(input$js_right_click, {
+      if (isTRUE(mapgl_3d_mode_val())) return()
       coords <- list(
         lon = input$js_right_click$lng,
         lat = input$js_right_click$lat
