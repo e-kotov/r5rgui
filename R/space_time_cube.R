@@ -1056,6 +1056,10 @@ get_space_time_cube_data <- function(
   center_lat <- origin_coords[2]
   epsg <- get_utm_epsg(center_lon, center_lat)
 
+  to_posixct <- function(time_str) {
+    as.POSIXct(paste(Sys.Date(), time_str), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+  }
+
   poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")
   if (!file.exists(poa_grid_file)) return(NULL)
   poa_grid <- read.csv(poa_grid_file)

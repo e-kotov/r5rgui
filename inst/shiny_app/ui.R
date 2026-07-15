@@ -23,6 +23,7 @@ ui <- shiny::fluidPage(
   shiny::div(
     style = "display: flex; justify-content: flex-end; align-items: center; padding: 10px 0; gap: 10px;",
     shiny::uiOutput("compare_mode_ui"),
+    shiny::uiOutput("mapgl_3d_ui"),
     shiny::uiOutput("cube_mode_ui"),
     shiny::actionButton(
       "quit_app",
@@ -494,11 +495,6 @@ ui <- shiny::fluidPage(
       ),
       shiny::hr(),
       shiny::h4("3D Cube Options"),
-      shiny::checkboxInput(
-        "mapgl_3d_mode",
-        "Enable MapGL 3D Space-Time Mode (In-place)",
-        value = FALSE
-      ),
       shiny::checkboxInput(
         "show_3d_isochrones",
         "Calculate reachability isochrones at transfers",

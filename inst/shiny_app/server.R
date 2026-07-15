@@ -83,7 +83,14 @@ function(app_args) {
     r5r_exec_time_2 <- shiny::reactiveVal(NULL)
     compare_mode <- shiny::reactiveVal(FALSE)
     cube_mode <- shiny::reactiveVal(FALSE)
+    mapgl_3d_mode_val <- shiny::reactiveVal(FALSE)
     current_basemap <- shiny::reactiveVal(unname(basemaps[[1]]))
+
+    # Output rendering for conditionally disabling tabs based on whether network is provided
+    output$has_network <- shiny::reactive({
+      !is.null(networks)
+    })
+    shiny::outputOptions(output, "has_network", suspendWhenHidden = FALSE)
 
     output$left_sidebar_title <- shiny::renderUI({
       if (compare_mode()) "Route 1 Settings" else "Trip Parameters"
@@ -96,6 +103,21 @@ function(app_args) {
 
       shiny::actionButton(
         "toggle_compare",
+        label,
+        style = sprintf(
+          "background-color: %s; color: white; border-width: 0px;",
+          color
+        )
+      )
+    })
+
+    output$mapgl_3d_ui <- shiny::renderUI({
+      active <- mapgl_3d_mode_val()
+      label <- if (active) "MapGL 3D: On" else "MapGL 3D: Off"
+      color <- if (active) "#21918c" else "#6c757d"
+
+      shiny::actionButton(
+        "toggle_mapgl_3d",
         label,
         style = sprintf(
           "background-color: %s; color: white; border-width: 0px;",
@@ -123,6 +145,10 @@ function(app_args) {
       compare_mode(!compare_mode())
     })
 
+    shiny::observeEvent(input$toggle_mapgl_3d, {
+      mapgl_3d_mode_val(!mapgl_3d_mode_val())
+    })
+
     shiny::observeEvent(input$toggle_cube, {
       cube_mode(!cube_mode())
     })
@@ -133,6 +159,10 @@ function(app_args) {
 
     shiny::observe({
       session$sendCustomMessage("updateCubeMode", cube_mode())
+    })
+
+    shiny::observe({
+      session$sendCustomMessage("updateMapGL3DMode", mapgl_3d_mode_val())
     })
 
     # Travel Time Surface Grid reactive calculation removed
@@ -829,7 +859,7 @@ function(app_args) {
       # Always clear it first when this block runs
       mapgl::clear_layer(proxy, "spacetime_cube_layer")
 
-      if (!isTRUE(input$mapgl_3d_mode)) return()
+      if (!isTRUE(mapgl_3d_mode_val())) return()
       shiny::req(locations$start)
 
       net <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
