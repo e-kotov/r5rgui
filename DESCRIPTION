@@ -11,9 +11,13 @@ Description: Interactively build and explore public transit routes with
 License: MIT + file LICENSE
 URL: https://github.com/e-kotov/r5rgui, https://www.ekotov.pro/r5rgui/
 BugReports: https://github.com/e-kotov/r5rgui/issues
+Depends:
+    R (>= 4.1.0)
 Imports:
+    accessibility,
     DT,
     mapgl,
+    plotly,
     r5r,
     sf,
     shiny

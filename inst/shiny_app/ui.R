@@ -23,15 +23,17 @@ ui <- shiny::fluidPage(
   shiny::div(
     style = "display: flex; justify-content: flex-end; align-items: center; padding: 10px 0; gap: 10px;",
     shiny::uiOutput("compare_mode_ui"),
+    shiny::uiOutput("cube_mode_ui"),
     shiny::actionButton(
       "quit_app",
       "Quit",
       style = "background-color: #d9534f; color: white; border-width: 0px;"
     ),
-    # Hidden input for Compare Mode state
+    # Hidden inputs for Compare Mode and 3D Cube state
     shiny::div(
       style = "display: none;",
-      shiny::checkboxInput("compare_mode", NULL, value = FALSE)
+      shiny::checkboxInput("compare_mode", NULL, value = FALSE),
+      shiny::checkboxInput("show_cube", NULL, value = FALSE)
     )
   ),
 
@@ -188,6 +190,18 @@ ui <- shiny::fluidPage(
       "
     Shiny.addCustomMessageHandler('updateCompareMode', function(value) {
       $('#compare_mode').prop('checked', value).change();
+    });
+
+    Shiny.addCustomMessageHandler('updateCubeMode', function(value) {
+      $('#show_cube').prop('checked', value).change();
+      // Trigger resize after layout updates
+      setTimeout(function() {
+        window.dispatchEvent(new Event('resize'));
+        // Trigger resize twice to ensure Maplibre finishes loading
+        setTimeout(function() {
+          window.dispatchEvent(new Event('resize'));
+        }, 150);
+      }, 100);
     });
 
     // --- Sidebar Persistence & Resizer Logic ---
@@ -477,6 +491,77 @@ ui <- shiny::fluidPage(
         "end_coords_input",
         "End (Lat, Lon)",
         placeholder = "-30.05, -51.18"
+      ),
+      shiny::hr(),
+      shiny::h4("3D Cube Options"),
+      shiny::checkboxInput(
+        "show_3d_isochrones",
+        "Calculate reachability isochrones at transfers",
+        value = FALSE
+      ),
+      shiny::conditionalPanel(
+        condition = "input.show_3d_isochrones",
+        shiny::numericInput(
+          "isochrone_cutoff_3d",
+          "Isochrone Cutoff (min)",
+          value = 15,
+          min = 1,
+          max = 60
+        )
+      ),
+      shiny::checkboxInput(
+        "show_3d_access_surface",
+        "Show Accessibility raster planes at stops",
+        value = FALSE
+      ),
+      shiny::conditionalPanel(
+        condition = "input.show_3d_access_surface",
+        shiny::selectInput(
+          "access_metric_3d",
+          "Accessibility Metric",
+          choices = c(
+            "Cumulative Cutoff" = "cumulative",
+            "Cumulative Interval" = "cumulative_interval",
+            "Gravity (Exponential Decay)" = "gravity",
+            "Cost to Closest" = "cost_to_closest",
+            "Floating Catchment Area (2SFCA)" = "floating_catchment",
+            "Spatial Availability" = "spatial_availability",
+            "Balancing Cost" = "balancing_cost"
+          ),
+          selected = "cumulative"
+        ),
+        shiny::selectInput(
+          "access_variable_3d",
+          "Opportunity Variable",
+          choices = c("Jobs" = "jobs", "Schools" = "schools", "Healthcare" = "healthcare", "Population" = "population"),
+          selected = "jobs"
+        ),
+        shiny::conditionalPanel(
+          condition = "input.access_metric_3d == 'cumulative' || input.access_metric_3d == 'cumulative_interval' || input.access_metric_3d == 'floating_catchment'",
+          shiny::sliderInput(
+            "access_cutoff_3d",
+            "Accessibility Cutoff (min)",
+            value = 30,
+            min = 5,
+            max = 60,
+            step = 5
+          )
+        ),
+        shiny::conditionalPanel(
+          condition = "input.access_metric_3d == 'cost_to_closest'",
+          shiny::numericInput(
+            "access_n_closest_3d",
+            "Number of Opportunities (N)",
+            value = 1,
+            min = 1,
+            max = 50
+          )
+        ),
+        shiny::tags$hr(),
+        shiny::h5("Volume Slicing"),
+        shiny::sliderInput("slice_z", "Time Slice Range (Hour)", min = 0, max = 23, value = c(0, 23), step = 1),
+        shiny::sliderInput("slice_y", "N-S Slice % (Vertical)", min = 0, max = 100, value = c(0, 100), step = 1),
+        shiny::sliderInput("slice_x", "E-W Slice % (Horizontal)", min = 0, max = 100, value = c(0, 100), step = 1)
       )
     ),
 
@@ -488,41 +573,76 @@ ui <- shiny::fluidPage(
       class = "map-column",
       shiny::div(
         class = "map-wrapper",
-        mapgl::maplibreOutput("map"),
+        style = "display: flex; flex-direction: row; height: 100%; width: 100%; position: relative;",
+        # Map Container
         shiny::div(
-          style = "position: absolute; bottom: 35px; left: 10px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;",
-          # Exec time is now in legends, but keep message and copy code here
-          shiny::uiOutput("copy_code_message_ui"),
-          shiny::actionButton("copy_code", "Copy R Code")
+          id = "map_container",
+          style = "height: 100%; position: relative; flex: 1; min-width: 0;",
+          mapgl::maplibreOutput("map"),
+          shiny::div(
+            style = "position: absolute; bottom: 35px; left: 10px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;",
+            # Exec time is now in legends, but keep message and copy code here
+            shiny::uiOutput("copy_code_message_ui"),
+            shiny::actionButton("copy_code", "Copy R Code")
+          ),
+          # Basemap Selector
+          shiny::absolutePanel(
+            bottom = 40,
+            right = 10,
+            width = "auto",
+            draggable = FALSE,
+            style = "z-index: 500;",
+            shiny::div(class = "basemap-panel", shiny::uiOutput("basemap_ui"))
+          )
         ),
-        # Basemap Selector
-        shiny::absolutePanel(
-          bottom = 40,
-          right = 10,
-          width = "auto",
-          draggable = FALSE,
-          style = "z-index: 500;",
-          shiny::div(class = "basemap-panel", shiny::uiOutput("basemap_ui"))
+        # 3D Space-Time Cube Container
+        shiny::conditionalPanel(
+          condition = "input.show_cube",
+          style = "flex: 1; height: 100%; border-left: 1px solid #ccc; background: white; overflow: hidden; position: relative; min-width: 0;",
+          shiny::conditionalPanel(
+            condition = "!input.compare_mode",
+            style = "height: 100%;",
+            plotly::plotlyOutput("space_time_cube", height = "100%")
+          ),
+          shiny::conditionalPanel(
+            condition = "input.compare_mode",
+            style = "height: 100%;",
+            shiny::tabsetPanel(
+              id = "compare_cube_tabs",
+              shiny::tabPanel(
+                "Route 1 Cube",
+                shiny::div(style = "padding-top:5px; height: 100%;"),
+                plotly::plotlyOutput("space_time_cube_1", height = "100%")
+              ),
+              shiny::tabPanel(
+                "Route 2 Cube",
+                shiny::div(style = "padding-top:5px; height: 100%;"),
+                plotly::plotlyOutput("space_time_cube_2", height = "100%")
+              )
+            )
+          )
         )
       ),
       shiny::div(
         class = "table-wrapper",
         shiny::conditionalPanel(
           condition = "!input.compare_mode",
-          shiny::h4("Itinerary Details"),
-          DT::dataTableOutput("itinerary_table")
+          shiny::div(
+            style = "padding: 10px 0 0 0;",
+            DT::dataTableOutput("itinerary_table")
+          )
         ),
         shiny::conditionalPanel(
           condition = "input.compare_mode",
           shiny::tabsetPanel(
             id = "compare_tabs_tables",
             shiny::tabPanel(
-              "Route 1",
+              "Route 1 Details",
               shiny::div(style = "padding-top:10px;"),
               DT::dataTableOutput("itinerary_table_1")
             ),
             shiny::tabPanel(
-              "Route 2",
+              "Route 2 Details",
               shiny::div(style = "padding-top:10px;"),
               DT::dataTableOutput("itinerary_table_2")
             )

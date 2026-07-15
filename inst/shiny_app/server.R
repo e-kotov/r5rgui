@@ -82,6 +82,7 @@ function(app_args) {
     r5r_exec_time_1 <- shiny::reactiveVal(NULL)
     r5r_exec_time_2 <- shiny::reactiveVal(NULL)
     compare_mode <- shiny::reactiveVal(FALSE)
+    cube_mode <- shiny::reactiveVal(FALSE)
     current_basemap <- shiny::reactiveVal(unname(basemaps[[1]]))
 
     output$left_sidebar_title <- shiny::renderUI({
@@ -103,13 +104,38 @@ function(app_args) {
       )
     })
 
+    output$cube_mode_ui <- shiny::renderUI({
+      active <- cube_mode()
+      label <- if (active) "3D View: On" else "3D View: Off"
+      color <- if (active) "#984ea3" else "#6c757d"
+
+      shiny::actionButton(
+        "toggle_cube",
+        label,
+        style = sprintf(
+          "background-color: %s; color: white; border-width: 0px;",
+          color
+        )
+      )
+    })
+
     shiny::observeEvent(input$toggle_compare, {
       compare_mode(!compare_mode())
+    })
+
+    shiny::observeEvent(input$toggle_cube, {
+      cube_mode(!cube_mode())
     })
 
     shiny::observe({
       session$sendCustomMessage("updateCompareMode", compare_mode())
     })
+
+    shiny::observe({
+      session$sendCustomMessage("updateCubeMode", cube_mode())
+    })
+
+    # Travel Time Surface Grid reactive calculation removed
 
     output$copy_code_message_ui <- shiny::renderUI({
       copy_code_message()
@@ -451,6 +477,26 @@ function(app_args) {
           units = "secs"
         )))
 
+        show_iso <- isTRUE(input$show_3d_isochrones)
+        cutoff <- if (show_iso) as.numeric(input$isochrone_cutoff_3d) else 15
+
+        # Calculate isochrones for Route 1 if enabled
+        iso1 <- NULL
+        if (show_iso && !is.null(res1) && nrow(res1) > 0) {
+          net1 <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
+            networks[[input$network_1_internal]]
+          } else {
+            networks[[1]]
+          }
+          iso1 <- calculate_route_isochrones(
+            itinerary = res1,
+            r5r_network = net1,
+            cutoffs = cutoff,
+            mode = "WALK",
+            date = input$departure_date_1_internal
+          )
+        }
+
         if (is_comparing) {
           t2_start <- Sys.time()
           res2 <- run_routing(
@@ -467,9 +513,27 @@ function(app_args) {
             t2_start,
             units = "secs"
           )))
-          res <- list(res1 = res1, res2 = res2)
+
+          # Calculate isochrones for Route 2 if enabled
+          iso2 <- NULL
+          if (show_iso && !is.null(res2) && nrow(res2) > 0) {
+            net2 <- if (!is.null(input$network_2_internal) && input$network_2_internal %in% names(networks)) {
+              networks[[input$network_2_internal]]
+            } else {
+              if (length(networks) >= 2) networks[[2]] else networks[[1]]
+            }
+            iso2 <- calculate_route_isochrones(
+              itinerary = res2,
+              r5r_network = net2,
+              cutoffs = cutoff,
+              mode = "WALK",
+              date = input$departure_date_2_internal
+            )
+          }
+
+          res <- list(res1 = res1, iso1 = iso1, res2 = res2, iso2 = iso2)
         } else {
-          res <- res1
+          res <- list(res = res1, iso = iso1)
           r5r_exec_time_2(NULL)
         }
 
@@ -485,6 +549,8 @@ function(app_args) {
         proxy <- mapgl::maplibre_proxy("map")
         mapgl::clear_layer(proxy, "route_layer_1")
         mapgl::clear_layer(proxy, "route_layer_2")
+        mapgl::clear_layer(proxy, "isochrone_layer_1")
+        mapgl::clear_layer(proxy, "isochrone_layer_2")
         mapgl::clear_legend(proxy)
 
         if (is.null(res)) {
@@ -492,6 +558,18 @@ function(app_args) {
         }
 
         is_comparing <- compare_mode()
+
+        if (is_comparing) {
+          route1 <- res$res1
+          iso1 <- res$iso1
+          route2 <- res$res2
+          iso2 <- res$iso2
+        } else {
+          route1 <- res$res
+          iso1 <- res$iso
+          route2 <- NULL
+          iso2 <- NULL
+        }
 
         # Distinct palettes
         palette1 <- c(
@@ -562,7 +640,6 @@ function(app_args) {
           ))
 
           # Calculate totals for the summary item
-          # Use total_duration if available, otherwise sum segment_duration + wait
           if ("total_duration" %in% names(first_option)) {
             total_dur_min <- first_option$total_duration[1]
           } else if ("segment_duration" %in% names(first_option)) {
@@ -572,7 +649,6 @@ function(app_args) {
             total_dur_min <- 0
           }
 
-          # Distance is usually sum of segment distances
           total_dist_km <- round(
             sum(first_option$distance, na.rm = TRUE) / 1000,
             2
@@ -641,7 +717,7 @@ function(app_args) {
           }
 
           draw_route_layer(
-            res$res1,
+            route1,
             "route_layer_1",
             palette1,
             "top-left",
@@ -650,7 +726,7 @@ function(app_args) {
             paste0("Route 1", net1_label)
           )
           draw_route_layer(
-            res$res2,
+            route2,
             "route_layer_2",
             palette2,
             "top-right",
@@ -662,12 +738,12 @@ function(app_args) {
           net1_label <- if (
             has_multiple_networks && !is.null(input$network_1_internal)
           ) {
-            paste0(" (", input$network_1_internal, ")")
+            paste0(" (" , input$network_1_internal, ")")
           } else {
             ""
           }
           draw_route_layer(
-            res,
+            route1,
             "route_layer_1",
             palette1,
             "top-left",
@@ -677,12 +753,68 @@ function(app_args) {
           )
         }
 
+        # Draw Isochrone 1
+        if (!is.null(iso1) && nrow(iso1) > 0) {
+          iso_colors <- c("15" = "#238b45", "30" = "#fec44f", "45" = "#ec7014", "60" = "#cc4c02")
+          unique_cuts <- unique(as.character(iso1$isochrone))
+          matching_colors <- iso_colors[names(iso_colors) %in% unique_cuts]
+          new_cuts <- setdiff(unique_cuts, names(matching_colors))
+          if (length(new_cuts) > 0) {
+            new_colors <- scales::hue_pal()(length(new_cuts))
+            names(new_colors) <- new_cuts
+            matching_colors <- c(matching_colors, new_colors)
+          }
+          
+          mapgl::add_fill_layer(
+            proxy,
+            id = "isochrone_layer_1",
+            source = iso1,
+            fill_color = mapgl::match_expr(
+              column = "isochrone",
+              values = names(matching_colors),
+              stops = as.character(matching_colors),
+              default = "#8856a7"
+            ),
+            fill_opacity = 0.35,
+            fill_outline_color = "#1b4332",
+            before_id = "route_layer_1"
+          )
+        }
+
+        # Draw Isochrone 2
+        if (is_comparing && !is.null(iso2) && nrow(iso2) > 0) {
+          iso_colors <- c("15" = "#238b45", "30" = "#fec44f", "45" = "#ec7014", "60" = "#cc4c02")
+          unique_cuts <- unique(as.character(iso2$isochrone))
+          matching_colors <- iso_colors[names(iso_colors) %in% unique_cuts]
+          new_cuts <- setdiff(unique_cuts, names(matching_colors))
+          if (length(new_cuts) > 0) {
+            new_colors <- scales::hue_pal()(length(new_cuts))
+            names(new_colors) <- new_cuts
+            matching_colors <- c(matching_colors, new_colors)
+          }
+          
+          mapgl::add_fill_layer(
+            proxy,
+            id = "isochrone_layer_2",
+            source = iso2,
+            fill_color = mapgl::match_expr(
+              column = "isochrone",
+              values = names(matching_colors),
+              stops = as.character(matching_colors),
+              default = "#8856a7"
+            ),
+            fill_opacity = 0.35,
+            fill_outline_color = "#1b4332",
+            before_id = "route_layer_2"
+          )
+        }
+
         # Handle empty results notifications
-        if (!is_comparing && !is.null(res) && nrow(res) == 0) {
+        if (!is_comparing && !is.null(route1) && nrow(route1) == 0) {
           shiny::showNotification("No route found.", type = "warning")
         } else if (is_comparing) {
-          r1_empty <- is.null(res$res1) || nrow(res$res1) == 0
-          r2_empty <- is.null(res$res2) || nrow(res$res2) == 0
+          r1_empty <- is.null(route1) || nrow(route1) == 0
+          r2_empty <- is.null(route2) || nrow(route2) == 0
           if (r1_empty && r2_empty) {
             shiny::showNotification("No routes found.", type = "warning")
           }
@@ -736,7 +868,7 @@ function(app_args) {
     output$itinerary_table <- DT::renderDataTable({
       res <- route_data()
       shiny::req(!is.null(res), !compare_mode())
-      render_itinerary_table(res)
+      render_itinerary_table(res$res)
     })
 
     # Compare mode table 1
@@ -751,6 +883,151 @@ function(app_args) {
       res <- route_data()
       shiny::req(!is.null(res), compare_mode())
       render_itinerary_table(res$res2)
+    })
+
+    # --- 3D SPACE-TIME CUBE PLOTLY RENDERERS ---
+
+    cube_bounds <- shiny::reactiveVal(NULL)
+
+    shiny::observeEvent(list(input$slice_x, input$slice_y, input$slice_z), {
+      bounds <- cube_bounds()
+      shiny::req(bounds)
+
+      x_range <- bounds$x[1] + (bounds$x[2] - bounds$x[1]) * (input$slice_x / 100)
+      y_range <- bounds$y[1] + (bounds$y[2] - bounds$y[1]) * (input$slice_y / 100)
+      z_range <- input$slice_z
+
+      restyle_update <- list(
+        "transforms[0].value" = x_range[1],
+        "transforms[1].value" = x_range[2],
+        "transforms[2].value" = y_range[1],
+        "transforms[3].value" = y_range[2],
+        "transforms[4].value" = z_range[1],
+        "transforms[5].value" = z_range[2]
+      )
+
+      if (compare_mode()) {
+        plotly::plotlyProxy("space_time_cube_1", session) |>
+          plotly::plotlyProxyInvoke("restyle", restyle_update)
+        plotly::plotlyProxy("space_time_cube_2", session) |>
+          plotly::plotlyProxyInvoke("restyle", restyle_update)
+      } else {
+        plotly::plotlyProxy("space_time_cube", session) |>
+          plotly::plotlyProxyInvoke("restyle", restyle_update)
+      }
+    }, ignoreInit = TRUE)
+
+    output$space_time_cube <- plotly::renderPlotly({
+      shiny::req(input$show_cube)
+
+      res <- tryCatch({
+        route_data()
+      }, error = function(e) {
+        NULL
+      })
+
+      net <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
+        networks[[input$network_1_internal]]
+      } else {
+        networks[[1]]
+      }
+
+      if (!is.null(res)) {
+        p <- plot_space_time_cube(
+          itinerary = res$res,
+          r5r_network = net,
+          isochrones_sf = res$iso,
+          isochrones = !is.null(res$iso),
+          date = input$departure_date_1_internal,
+          departure_time = input$departure_time_1_internal,
+          accessibility_surface = isTRUE(input$show_3d_access_surface),
+          access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
+          access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
+          access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
+          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+        )
+      } else {
+        shiny::req(locations$start)
+        p <- plot_space_time_cube(
+          itinerary = NULL,
+          origin_coords = c(locations$start$lon, locations$start$lat),
+          r5r_network = net,
+          date = input$departure_date_1_internal,
+          departure_time = input$departure_time_1_internal,
+          accessibility_surface = isTRUE(input$show_3d_access_surface),
+          access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
+          access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
+          access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
+          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+        )
+      }
+      
+      if (!is.null(p$x$custom_bounds)) {
+        cube_bounds(p$x$custom_bounds)
+      }
+      p
+    })
+
+    output$space_time_cube_1 <- plotly::renderPlotly({
+      res <- route_data()
+      shiny::req(!is.null(res))
+      shiny::req(compare_mode())
+      shiny::req(input$show_cube)
+
+      net <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
+        networks[[input$network_1_internal]]
+      } else {
+        networks[[1]]
+      }
+
+      p <- plot_space_time_cube(
+        itinerary = res$res1,
+        r5r_network = net,
+        isochrones_sf = res$iso1,
+        isochrones = !is.null(res$iso1),
+        date = input$departure_date_1_internal,
+        accessibility_surface = isTRUE(input$show_3d_access_surface),
+        access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
+        access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
+        access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+      )
+      
+      if (!is.null(p$x$custom_bounds)) {
+        cube_bounds(p$x$custom_bounds)
+      }
+      p
+    })
+
+    output$space_time_cube_2 <- plotly::renderPlotly({
+      res <- route_data()
+      shiny::req(!is.null(res))
+      shiny::req(compare_mode())
+      shiny::req(input$show_cube)
+
+      net <- if (!is.null(input$network_2_internal) && input$network_2_internal %in% names(networks)) {
+        networks[[input$network_2_internal]]
+      } else {
+        networks[[1]]
+      }
+
+      p <- plot_space_time_cube(
+        itinerary = res$res2,
+        r5r_network = net,
+        isochrones_sf = res$iso2,
+        isochrones = !is.null(res$iso2),
+        date = input$departure_date_2_internal,
+        accessibility_surface = isTRUE(input$show_3d_access_surface),
+        access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
+        access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
+        access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+      )
+      
+      if (!is.null(p$x$custom_bounds)) {
+        cube_bounds(p$x$custom_bounds)
+      }
+      p
     })
 
     # --- OBSERVER FOR COPY CODE BUTTON ---
