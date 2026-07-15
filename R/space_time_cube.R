@@ -1050,14 +1050,22 @@ plot_space_time_cube <- function(itinerary = NULL,
 #' @export
 get_space_time_cube_data <- function(
   r5r_network, origin_coords, access_variable = "jobs", 
-  access_cutoff = 30, access_metric = "cumulative", access_n_closest = 1L
+  access_cutoff = 30, access_metric = "cumulative", access_n_closest = 1L,
+  date = Sys.Date()
 ) {
   center_lon <- origin_coords[1]
   center_lat <- origin_coords[2]
   epsg <- get_utm_epsg(center_lon, center_lat)
 
+  date_str <- as.character(date)
   to_posixct <- function(time_str) {
-    as.POSIXct(paste(Sys.Date(), time_str), format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+    if (inherits(time_str, "POSIXt")) return(time_str)
+    time_str <- as.character(time_str)
+    res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M:%S")
+    if (all(is.na(res))) {
+      res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M")
+    }
+    res
   }
 
   poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")

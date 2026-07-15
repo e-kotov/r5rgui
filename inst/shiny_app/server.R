@@ -890,7 +890,8 @@ function(app_args) {
         access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
         access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
         access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
+        date = input$departure_date_1_internal
       )
 
       if (!is.null(cube_data) && nrow(cube_data) > 0) {
