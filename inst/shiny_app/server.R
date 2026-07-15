@@ -1007,13 +1007,15 @@ function(app_args) {
           
           # Overwrite with drawn features if present
           if (!is.null(input$map_drawn_features) && length(input$map_drawn_features$features) > 0) {
-            json_str <- jsonlite::toJSON(input$map_drawn_features, auto_unbox = TRUE)
-            drawn_sf <- tryCatch(sf::st_read(json_str, quiet = TRUE), error = function(e) NULL)
-            if (!is.null(drawn_sf) && nrow(drawn_sf) > 0) {
-              bbox <- sf::st_bbox(drawn_sf)
-              map_x_range <- c(bbox["xmin"], bbox["xmax"])
-              map_y_range <- c(bbox["ymin"], bbox["ymax"])
-            }
+            tryCatch({
+              coords <- unlist(lapply(input$map_drawn_features$features, function(f) f$geometry$coordinates))
+              lons <- coords[c(TRUE, FALSE)]
+              lats <- coords[c(FALSE, TRUE)]
+              if (length(lons) > 0 && length(lats) > 0) {
+                map_x_range <- c(min(lons), max(lons))
+                map_y_range <- c(min(lats), max(lats))
+              }
+            }, error = function(e) NULL)
           }
 
           z_range <- input$slice_z
