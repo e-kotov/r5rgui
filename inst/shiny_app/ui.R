@@ -34,7 +34,8 @@ ui <- shiny::fluidPage(
     shiny::div(
       style = "display: none;",
       shiny::checkboxInput("compare_mode", NULL, value = FALSE),
-      shiny::checkboxInput("show_cube", NULL, value = FALSE)
+      shiny::checkboxInput("show_cube", NULL, value = FALSE),
+      shiny::checkboxInput("mapgl_3d_mode", NULL, value = FALSE)
     )
   ),
 
@@ -561,8 +562,15 @@ ui <- shiny::fluidPage(
         shiny::tags$hr(),
         shiny::h5("Volume Slicing"),
         shiny::sliderInput("slice_z", "Time Slice Range (Hour)", min = 0, max = 23, value = c(0, 23), step = 1),
-        shiny::sliderInput("slice_y", "N-S Slice % (Vertical)", min = 0, max = 100, value = c(0, 100), step = 1),
-        shiny::sliderInput("slice_x", "E-W Slice % (Horizontal)", min = 0, max = 100, value = c(0, 100), step = 1)
+        shiny::conditionalPanel(
+          condition = "!input.mapgl_3d_mode",
+          shiny::sliderInput("slice_y", "N-S Slice % (Vertical)", min = 0, max = 100, value = c(0, 100), step = 1),
+          shiny::sliderInput("slice_x", "E-W Slice % (Horizontal)", min = 0, max = 100, value = c(0, 100), step = 1)
+        ),
+        shiny::conditionalPanel(
+          condition = "input.mapgl_3d_mode",
+          shiny::p("Use the rectangle drawing tool on the map to slice.", class = "text-muted", style = "font-size: 0.9em; font-style: italic; margin-top: 10px;")
+        )
       )
     ),
 

@@ -147,6 +147,7 @@ function(app_args) {
 
     shiny::observeEvent(input$toggle_mapgl_3d, {
       mapgl_3d_mode_val(!mapgl_3d_mode_val())
+      shiny::updateCheckboxInput(session, "mapgl_3d_mode", value = mapgl_3d_mode_val())
     })
 
     shiny::observeEvent(input$toggle_cube, {
@@ -202,7 +203,15 @@ function(app_args) {
       ) |>
         mapgl::add_navigation_control(position = "bottom-right") |>
         mapgl::add_fullscreen_control(position = "bottom-right") |>
-        mapgl::add_scale_control(position = "bottom-left", unit = "metric")
+        mapgl::add_scale_control(position = "bottom-left", unit = "metric") |>
+        mapgl::add_draw_control(
+          rectangle = TRUE,
+          freehand = FALSE,
+          point = FALSE,
+          line_string = FALSE,
+          polygon = FALSE,
+          trash = TRUE
+        )
     })
 
     # --- COORDINATE HANDLING LOGIC ---
@@ -985,13 +994,26 @@ function(app_args) {
     cube_bounds <- shiny::reactiveVal(NULL)
     mapgl_cube_bounds <- shiny::reactiveVal(NULL)
 
-    shiny::observeEvent(list(input$slice_x, input$slice_y, input$slice_z), {
-      # Handle MapGL slicing
+    shiny::observeEvent(list(input$map_drawn_features, input$slice_z, mapgl_3d_mode_val()), {
+      # Handle MapGL slicing via drawn brush
       if (isTRUE(mapgl_3d_mode_val())) {
         map_bounds <- mapgl_cube_bounds()
         if (!is.null(map_bounds)) {
-          map_x_range <- map_bounds$x[1] + (map_bounds$x[2] - map_bounds$x[1]) * (input$slice_x / 100)
-          map_y_range <- map_bounds$y[1] + (map_bounds$y[2] - map_bounds$y[1]) * (input$slice_y / 100)
+          # Default to full bounds
+          map_x_range <- map_bounds$x
+          map_y_range <- map_bounds$y
+          
+          # Overwrite with drawn features if present
+          if (!is.null(input$map_drawn_features) && length(input$map_drawn_features$features) > 0) {
+            json_str <- jsonlite::toJSON(input$map_drawn_features, auto_unbox = TRUE)
+            drawn_sf <- tryCatch(sf::st_read(json_str, quiet = TRUE), error = function(e) NULL)
+            if (!is.null(drawn_sf) && nrow(drawn_sf) > 0) {
+              bbox <- sf::st_bbox(drawn_sf)
+              map_x_range <- c(bbox["xmin"], bbox["xmax"])
+              map_y_range <- c(bbox["ymin"], bbox["ymax"])
+            }
+          }
+
           z_range <- input$slice_z
           
           proxy <- mapgl::maplibre_proxy("map")
@@ -1009,8 +1031,9 @@ function(app_args) {
           )
         }
       }
+    })
 
-      # Handle Plotly slicing
+    shiny::observeEvent(list(input$slice_x, input$slice_y, input$slice_z), {
       bounds <- cube_bounds()
       if (!is.null(bounds) && isTRUE(cube_mode())) {
         x_range <- bounds$x[1] + (bounds$x[2] - bounds$x[1]) * (input$slice_x / 100)
