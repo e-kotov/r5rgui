@@ -822,6 +822,64 @@ function(app_args) {
       })
     })
 
+    # --- MAPGL 3D SPACE-TIME CUBE OBSERVER ---
+    shiny::observe({
+      proxy <- mapgl::maplibre_proxy("map")
+      
+      # Always clear it first when this block runs
+      mapgl::clear_layer(proxy, "spacetime_cube_layer")
+
+      if (!isTRUE(input$mapgl_3d_mode)) return()
+      shiny::req(locations$start)
+
+      net <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
+        networks[[input$network_1_internal]]
+      } else {
+        networks[[1]]
+      }
+
+      shiny::showNotification("Calculating 3D MapGL Space-Time Cube...", id = "mapgl_cube_calc", duration = NULL)
+      on.exit(shiny::removeNotification("mapgl_cube_calc"), add = TRUE)
+
+      origin_coords <- c(locations$start$lon, locations$start$lat)
+
+      cube_data <- get_space_time_cube_data(
+        r5r_network = net,
+        origin_coords = origin_coords,
+        access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
+        access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
+        access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+      )
+
+      if (!is.null(cube_data) && nrow(cube_data) > 0) {
+        min_acc <- min(cube_data$accessibility, na.rm = TRUE)
+        max_acc <- max(cube_data$accessibility, na.rm = TRUE)
+        if (min_acc == max_acc) max_acc <- min_acc + 1
+
+        mapgl::add_fill_extrusion_layer(
+          proxy,
+          id = "spacetime_cube_layer",
+          source = cube_data,
+          fill_extrusion_base = mapgl::get_column("base_height"),
+          fill_extrusion_height = mapgl::get_column("top_height"),
+          fill_extrusion_color = mapgl::interpolate(
+            column = "accessibility",
+            values = seq(min_acc, max_acc, length.out = 5),
+            stops = c("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"),
+            na_color = "#cccccc"
+          ),
+          fill_extrusion_opacity = 0.85
+        )
+        
+        # Adjust map pitch/bearing to show 3D effectively
+        mapgl::ease_to(proxy, pitch = 60, bearing = -20, duration = 1000)
+      } else {
+        shiny::showNotification("No accessibility data found for the origin.", type = "warning")
+      }
+    })
+
+
     # --- ITINERARY TABLE RENDERERS ---
 
     # Helper function to render a single itinerary table

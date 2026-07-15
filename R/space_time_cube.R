@@ -1045,3 +1045,94 @@ plot_space_time_cube <- function(itinerary = NULL,
 
   p
 }
+
+#' Get Space-Time Cube Data for MapGL Extrusion
+#' @export
+get_space_time_cube_data <- function(
+  r5r_network, origin_coords, access_variable = "jobs", 
+  access_cutoff = 30, access_metric = "cumulative", access_n_closest = 1L
+) {
+  center_lon <- origin_coords[1]
+  center_lat <- origin_coords[2]
+  epsg <- get_utm_epsg(center_lon, center_lat)
+
+  poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")
+  if (!file.exists(poa_grid_file)) return(NULL)
+  poa_grid <- read.csv(poa_grid_file)
+
+  poa_grid[[access_variable]][is.na(poa_grid[[access_variable]])] <- 0
+
+  all_polys <- list()
+  dep_hours <- 6:20 
+  
+  for (h in dep_hours) {
+    hour_str <- sprintf("%02d:00:00", h)
+    dep_dt <- to_posixct(hour_str)
+    
+    orig_df <- data.frame(id = "start", lon = center_lon, lat = center_lat)
+    
+    ttm_start <- tryCatch({
+      if (utils::packageVersion("r5r") >= "2.3.0") {
+        r5r::travel_time_matrix(r5r_network, origins = orig_df, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = 60, verbose = FALSE, progress = FALSE)
+      } else {
+        r5r::travel_time_matrix(r5r_core = r5r_network, origins = orig_df, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = 60, verbose = FALSE, progress = FALSE)
+      }
+    }, error = function(e) NULL)
+
+    if (is.null(ttm_start) || nrow(ttm_start) == 0) next
+    
+    start_tt_col <- intersect(names(ttm_start), c("travel_time_p50", "travel_time"))[1]
+    names(ttm_start)[names(ttm_start) == start_tt_col] <- "travel_time"
+    
+    reachable_ids <- ttm_start$to_id
+    reachable_grid <- poa_grid[poa_grid$id %in% reachable_ids, ]
+    
+    if (nrow(reachable_grid) == 0) next
+    
+    max_duration <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) 90 else access_cutoff
+    
+    ttm_all <- tryCatch({
+      if (utils::packageVersion("r5r") >= "2.3.0") {
+        r5r::travel_time_matrix(r5r_network, origins = reachable_grid, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = max_duration, verbose = FALSE, progress = FALSE)
+      } else {
+        r5r::travel_time_matrix(r5r_core = r5r_network, origins = reachable_grid, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = max_duration, verbose = FALSE, progress = FALSE)
+      }
+    }, error = function(e) NULL)
+    
+    if (is.null(ttm_all) || nrow(ttm_all) == 0) next
+    
+    all_tt_col <- intersect(names(ttm_all), c("travel_time_p50", "travel_time"))[1]
+    names(ttm_all)[names(ttm_all) == all_tt_col] <- "travel_time"
+    
+    acc_res <- tryCatch({
+      if (access_metric == "cumulative") {
+        accessibility::cumulative_cutoff(ttm_all, poa_grid, access_variable, "travel_time", access_cutoff, fill_missing_ids = TRUE)
+      } else {
+        NULL # Simplify for exploration
+      }
+    }, error = function(e) NULL)
+    
+    if (!is.null(acc_res) && nrow(acc_res) > 0) {
+      if (access_variable %in% names(acc_res)) {
+        names(acc_res)[names(acc_res) == access_variable] <- "accessibility"
+        acc_res$accessibility[is.na(acc_res$accessibility)] <- 0
+        
+        merged_grid <- merge(reachable_grid, acc_res, by = "id")
+        
+        pts <- sf::st_as_sf(merged_grid, coords = c("lon", "lat"), crs = 4326)
+        pts_proj <- sf::st_transform(pts, epsg)
+        polys <- sf::st_buffer(pts_proj, dist = 250, nQuadSeg = 2) 
+        polys <- sf::st_transform(polys, 4326)
+        
+        polys$base_height <- (h - 6) * 1500
+        polys$top_height <- polys$base_height + 300
+        
+        all_polys[[length(all_polys) + 1]] <- polys
+      }
+    }
+  }
+  
+  if (length(all_polys) == 0) return(NULL)
+  
+  do.call(rbind, all_polys)
+}

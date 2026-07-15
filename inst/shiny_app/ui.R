@@ -495,6 +495,11 @@ ui <- shiny::fluidPage(
       shiny::hr(),
       shiny::h4("3D Cube Options"),
       shiny::checkboxInput(
+        "mapgl_3d_mode",
+        "Enable MapGL 3D Space-Time Mode (In-place)",
+        value = FALSE
+      ),
+      shiny::checkboxInput(
         "show_3d_isochrones",
         "Calculate reachability isochrones at transfers",
         value = FALSE
