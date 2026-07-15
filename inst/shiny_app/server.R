@@ -903,7 +903,7 @@ function(app_args) {
         )
         
         # Adjust map pitch/bearing to show 3D effectively
-        mapgl::ease_to(proxy, pitch = 60, bearing = -20, duration = 1000)
+        mapgl::ease_to(proxy, center = origin_coords, pitch = 60, bearing = -20, duration = 1000)
       } else {
         shiny::showNotification("No accessibility data found for the origin.", type = "warning")
       }

@@ -1128,8 +1128,8 @@ get_space_time_cube_data <- function(
         polys <- sf::st_buffer(pts_proj, dist = 250, nQuadSeg = 2) 
         polys <- sf::st_transform(polys, 4326)
         
-        polys$base_height <- (h - 6) * 1500
-        polys$top_height <- polys$base_height + 300
+        polys$base_height <- (h - 6) * 200
+        polys$top_height <- polys$base_height + 25
         
         all_polys[[length(all_polys) + 1]] <- polys
       }
