@@ -1,5 +1,7 @@
 # r5rgui (development version)
 
+* `r5r_gui()` now defaults to the first date with sustained high transit availability when the network's service calendar supports estimating one.
+
 # r5rgui 0.2.0
 
 * **New Compare Mode**: Added a toggle to switch between Normal and Compare modes, allowing users to compare two routes side-by-side with independent settings.

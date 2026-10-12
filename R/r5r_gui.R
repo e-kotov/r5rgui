@@ -7,7 +7,7 @@
 #'   If a list is provided, the list names will be used as labels in the GUI. If a single object is provided, its variable name will be used as the label.
 #' @param center A numeric vector of length 2, specifying the initial longitude and latitude for the map's center. If `NULL` (the default), the map will be centered on the bounding box of the `r5r_network`. If `{r5r}` is below version 2.4.0, calculating the bounding box may be slow.
 #' @param zoom An integer specifying the initial zoom level of the map. If `NULL` (the default), the zoom level will be automatically calculated to fit the bounding box of the `r5r_network`. If `{r5r}` is below version 2.4.0, calculating the bounding box may be slow.
-#' @param departure_date A Date object specifying the initial departure date for the trip. Defaults to the current system date.
+#' @param departure_date A Date object specifying the initial departure date for the trip. When omitted, the GUI estimates the first date with sustained high transit availability from the network's service calendar. If that cannot be estimated, it uses the current system date.
 #' @param mode A character vector specifying the initial transport modes. This is passed directly to the `mode` argument in [detailed_itineraries()][r5r::detailed_itineraries] (and other functions of [`r5r`][r5r::r5r]). Defaults to `c("WALK", "TRANSIT")`.
 #' @param basemaps A named list of MapLibre style URLs (or style generator functions like [mapgl::carto_style()]). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See [mapgl styling helpers](https://walker-data.com/mapgl/reference/index.html#styling-helpers) for options.
 #'
@@ -49,7 +49,7 @@ r5r_gui <- function(
   r5r_network,
   center = NULL,
   zoom = NULL,
-  departure_date = Sys.Date(),
+  departure_date = NULL,
   mode = c("WALK", "TRANSIT"),
   basemaps = list(
     "Positron" = mapgl::carto_style("positron"),
@@ -101,6 +101,10 @@ r5r_gui <- function(
     primary_network <- r5r_network
     # Use the object name passed by the user
     r5r_network <- stats::setNames(list(r5r_network), r5r_network_name)
+  }
+
+  if (is.null(departure_date)) {
+    departure_date <- guess_initial_departure_date(primary_network)
   }
 
   # if center or zoom are not provided, calculate them from the network bbox
@@ -165,4 +169,70 @@ r5r_gui <- function(
 
   # Launch the application using shinyApp
   shiny::shinyApp(ui = ui, server = server)
+}
+
+# Estimate the beginning of the network's first sustained high-availability
+# period. Full seven-day forward means smooth weekly schedules. A change is
+# treated as sustained when at least 28 consecutive windows are above the
+# midpoint between the median of the first four windows and the 90th percentile.
+# The returned date is the first date above that baseline within the first
+# qualifying week. If there is no sustained increase, use the first operating
+# date.
+#' @noRd
+guess_initial_departure_date <- function(r5r_network) {
+  if (!exists("check_transit_availability", envir = asNamespace("r5r"),
+              inherits = FALSE)) {
+    return(Sys.Date())
+  }
+
+  discovered <- tryCatch(
+    r5r::check_transit_availability(r5r_network),
+    error = function(e) NULL
+  )
+  if (is.null(discovered)) return(Sys.Date())
+  if (nrow(discovered) == 0L) return(Sys.Date())
+
+  first_operating_date <- min(discovered$date)
+  last_operating_date <- max(discovered$date)
+  dates <- seq(first_operating_date, last_operating_date, by = "day")
+  daily <- tryCatch(
+    r5r::check_transit_availability(
+      r5r_network,
+      start_date = first_operating_date,
+      end_date = last_operating_date
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(daily)) return(first_operating_date)
+  pct_active <- daily$pct_active[match(dates, daily$date)]
+  pct_active[is.na(pct_active)] <- 0
+
+  if (length(pct_active) < 7L) return(first_operating_date)
+
+  n_windows <- length(pct_active) - 6L
+  weekly_mean <- vapply(
+    seq_len(n_windows),
+    function(i) mean(pct_active[i:(i + 6L)]),
+    numeric(1)
+  )
+  baseline <- stats::median(weekly_mean[seq_len(min(4L, length(weekly_mean)))])
+  high_level <- unname(stats::quantile(weekly_mean, 0.9, type = 1))
+  if (!is.finite(high_level) || high_level <= baseline) {
+    return(first_operating_date)
+  }
+
+  above_midpoint <- weekly_mean >= baseline + (high_level - baseline) / 2
+  runs <- rle(above_midpoint)
+  run_ends <- cumsum(runs$lengths)
+  run_starts <- run_ends - runs$lengths + 1L
+  sustained_run <- which(runs$values & runs$lengths >= 28L)
+  if (length(sustained_run) == 0L) return(first_operating_date)
+
+  window_start <- run_starts[sustained_run[1]]
+  window_dates <- dates[window_start:(window_start + 6L)]
+  window_pct <- pct_active[window_start:(window_start + 6L)]
+  first_high_day <- which(window_pct > baseline)[1]
+  if (is.na(first_high_day)) return(first_operating_date)
+
+  window_dates[first_high_day]
 }

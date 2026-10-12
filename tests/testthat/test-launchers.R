@@ -94,6 +94,35 @@ test_that("r5r_gui() prepares arguments correctly for the shiny app", {
   expect_identical(captured_args$r5r_network_name, "dummy_net")
 })
 
+test_that("r5r_gui() guesses a departure date when none is supplied", {
+  dummy_net <- list(name = "dummy_network_object")
+  guessed_date <- as.Date("2019-04-15")
+  captured_server_function <- NULL
+
+  local_mocked_bindings(
+    guess_initial_departure_date = function(network) {
+      expect_identical(network, "dummy_network_object")
+      guessed_date
+    },
+    .package = "r5rgui"
+  )
+  local_mocked_bindings(
+    shinyApp = function(ui, server) {
+      captured_server_function <<- server
+    },
+    .package = "shiny"
+  )
+
+  r5r_gui(
+    r5r_network = dummy_net,
+    center = c(-51.22, -30.05),
+    zoom = 11
+  )
+
+  server_env <- rlang::fn_env(captured_server_function)
+  expect_identical(server_env$app_args$departure_date, guessed_date)
+})
+
 # --- Tests for automatic centering and zooming ---
 
 test_that("r5r_gui() sets automatic center and zoom when not provided", {

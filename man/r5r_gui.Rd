@@ -8,7 +8,7 @@ r5r_gui(
   r5r_network,
   center = NULL,
   zoom = NULL,
-  departure_date = Sys.Date(),
+  departure_date = NULL,
   mode = c("WALK", "TRANSIT"),
   basemaps = list(Positron = mapgl::carto_style("positron"), `Dark Matter` =
     mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager"))
@@ -22,7 +22,7 @@ If a list is provided, the list names will be used as labels in the GUI. If a si
 
 \item{zoom}{An integer specifying the initial zoom level of the map. If \code{NULL} (the default), the zoom level will be automatically calculated to fit the bounding box of the \code{r5r_network}. If \code{{r5r}} is below version 2.4.0, calculating the bounding box may be slow.}
 
-\item{departure_date}{A Date object specifying the initial departure date for the trip. Defaults to the current system date.}
+\item{departure_date}{A Date object specifying the initial departure date for the trip. When omitted, the GUI estimates the first date with sustained high transit availability from the network's service calendar. If that cannot be estimated, it uses the current system date.}
 
 \item{mode}{A character vector specifying the initial transport modes. This is passed directly to the \code{mode} argument in \link[r5r:detailed_itineraries]{detailed_itineraries()} (and other functions of \code{\link[r5r:r5r]{r5r}}). Defaults to \code{c("WALK", "TRANSIT")}.}
 
