@@ -132,6 +132,45 @@ test_that("r5r_gui() guesses a departure date when none is supplied", {
   expect_identical(server_env$app_args$departure_date, guessed_date)
 })
 
+test_that("r5r_gui() uses today's date with older r5r releases", {
+  dummy_net <- list(name = "dummy_network_object")
+  captured_server_function <- NULL
+
+  local_mocked_bindings(
+    packageVersion = function(pkg) {
+      if (pkg == "r5r") return("2.4.0")
+      base::packageVersion(pkg)
+    },
+    .package = "utils"
+  )
+  local_mocked_bindings(
+    get_transit_availability_calendar = function(network) {
+      stop("Availability discovery should not run with older r5r releases.")
+    },
+    .package = "r5rgui"
+  )
+  local_mocked_bindings(
+    shinyApp = function(ui, server) {
+      captured_server_function <<- server
+    },
+    .package = "shiny"
+  )
+
+  today <- Sys.Date()
+  r5r_gui(
+    r5r_network = dummy_net,
+    center = c(-51.22, -30.05),
+    zoom = 11
+  )
+
+  server_env <- rlang::fn_env(captured_server_function)
+  expect_identical(server_env$app_args$departure_date, today)
+  expect_identical(
+    server_env$app_args$transit_availability,
+    stats::setNames(list(NULL), "name")
+  )
+})
+
 # --- Tests for automatic centering and zooming ---
 
 test_that("r5r_gui() sets automatic center and zoom when not provided", {

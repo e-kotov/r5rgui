@@ -103,13 +103,22 @@ r5r_gui <- function(
     r5r_network <- stats::setNames(list(r5r_network), r5r_network_name)
   }
 
-  transit_availability <- lapply(
-    r5r_network,
-    get_transit_availability_calendar
-  )
+  # check_transit_availability() with date discovery and date ranges is
+  # available from this r5r development version onward. Older releases should
+  # retain the historical current-date default and omit calendar coloring.
+  supports_transit_calendar <- utils::packageVersion("r5r") >= "2.4.0.9001"
+  transit_availability <- if (supports_transit_calendar) {
+    lapply(r5r_network, get_transit_availability_calendar)
+  } else {
+    stats::setNames(rep(list(NULL), length(r5r_network)), names(r5r_network))
+  }
 
   if (is.null(departure_date)) {
-    departure_date <- guess_initial_departure_date(transit_availability[[1]])
+    departure_date <- if (supports_transit_calendar) {
+      guess_initial_departure_date(transit_availability[[1]])
+    } else {
+      Sys.Date()
+    }
   }
 
   # if center or zoom are not provided, calculate them from the network bbox
