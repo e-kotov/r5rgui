@@ -103,8 +103,13 @@ r5r_gui <- function(
     r5r_network <- stats::setNames(list(r5r_network), r5r_network_name)
   }
 
+  transit_availability <- lapply(
+    r5r_network,
+    get_transit_availability_calendar
+  )
+
   if (is.null(departure_date)) {
-    departure_date <- guess_initial_departure_date(primary_network)
+    departure_date <- guess_initial_departure_date(transit_availability[[1]])
   }
 
   # if center or zoom are not provided, calculate them from the network bbox
@@ -160,6 +165,7 @@ r5r_gui <- function(
     center = center,
     zoom = zoom,
     departure_date = departure_date,
+    transit_availability = transit_availability,
     mode = mode,
     basemaps = basemaps
   )
@@ -171,6 +177,31 @@ r5r_gui <- function(
   shiny::shinyApp(ui = ui, server = server)
 }
 
+#' @noRd
+get_transit_availability_calendar <- function(r5r_network) {
+  if (!exists("check_transit_availability", envir = asNamespace("r5r"),
+              inherits = FALSE)) {
+    return(NULL)
+  }
+
+  discovered <- tryCatch(
+    r5r::check_transit_availability(r5r_network),
+    error = function(e) NULL
+  )
+  if (is.null(discovered) || nrow(discovered) == 0L) return(NULL)
+
+  first_operating_date <- min(discovered$date)
+  last_operating_date <- max(discovered$date)
+  tryCatch(
+    r5r::check_transit_availability(
+      r5r_network,
+      start_date = first_operating_date,
+      end_date = last_operating_date
+    ),
+    error = function(e) NULL
+  )
+}
+
 # Estimate the beginning of the network's first sustained high-availability
 # period. Full seven-day forward means smooth weekly schedules. A change is
 # treated as sustained when at least 28 consecutive windows are above the
@@ -179,31 +210,15 @@ r5r_gui <- function(
 # qualifying week. If there is no sustained increase, use the first operating
 # date.
 #' @noRd
-guess_initial_departure_date <- function(r5r_network) {
-  if (!exists("check_transit_availability", envir = asNamespace("r5r"),
-              inherits = FALSE)) {
-    return(Sys.Date())
-  }
+guess_initial_departure_date <- function(daily) {
+  if (is.null(daily) || nrow(daily) == 0L) return(Sys.Date())
 
-  discovered <- tryCatch(
-    r5r::check_transit_availability(r5r_network),
-    error = function(e) NULL
-  )
-  if (is.null(discovered)) return(Sys.Date())
-  if (nrow(discovered) == 0L) return(Sys.Date())
-
-  first_operating_date <- min(discovered$date)
-  last_operating_date <- max(discovered$date)
+  operating_dates <- daily$date[daily$active_services > 0]
+  if (length(operating_dates) == 0L) return(Sys.Date())
+  first_operating_date <- min(operating_dates)
+  last_operating_date <- max(operating_dates)
+  daily <- daily[daily$date >= first_operating_date & daily$date <= last_operating_date, ]
   dates <- seq(first_operating_date, last_operating_date, by = "day")
-  daily <- tryCatch(
-    r5r::check_transit_availability(
-      r5r_network,
-      start_date = first_operating_date,
-      end_date = last_operating_date
-    ),
-    error = function(e) NULL
-  )
-  if (is.null(daily)) return(first_operating_date)
   pct_active <- daily$pct_active[match(dates, daily$date)]
   pct_active[is.na(pct_active)] <- 0
 

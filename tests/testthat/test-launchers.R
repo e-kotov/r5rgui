@@ -100,8 +100,17 @@ test_that("r5r_gui() guesses a departure date when none is supplied", {
   captured_server_function <- NULL
 
   local_mocked_bindings(
-    guess_initial_departure_date = function(network) {
+    get_transit_availability_calendar = function(network) {
       expect_identical(network, "dummy_network_object")
+      data.frame(
+        date = as.Date("2019-04-15"),
+        total_services = 1L,
+        active_services = 1L,
+        pct_active = 1
+      )
+    },
+    guess_initial_departure_date = function(calendar) {
+      expect_equal(calendar$pct_active, 1)
       guessed_date
     },
     .package = "r5rgui"

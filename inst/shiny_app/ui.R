@@ -182,12 +182,116 @@ ui <- shiny::fluidPage(
       .basemap-panel .selectize-control {
         margin-bottom: 0 !important;
       }
+
+      .datepicker table { border-collapse: separate; border-spacing: 0; }
+      .datepicker table tr td.day.transit-none,
+      .datepicker table tr td.day.transit-low,
+      .datepicker table tr td.day.transit-moderate,
+      .datepicker table tr td.day.transit-high {
+        border-radius: 0 !important;
+      }
+      .datepicker table tr td.day.transit-none {
+        background-color: #d1d5db !important;
+        color: #374151 !important;
+      }
+      .datepicker table tr td.day.transit-low {
+        background-color: #deebf7 !important;
+        color: #1f2937 !important;
+      }
+      .datepicker table tr td.day.transit-moderate {
+        background-color: #9ecae1 !important;
+        color: #1f2937 !important;
+      }
+      .datepicker table tr td.day.transit-high {
+        background-color: #2171b5 !important;
+        color: #ffffff !important;
+      }
+      .datepicker table tr td.day.disabled.transit-none {
+        background-color: #d1d5db !important;
+        color: #374151 !important;
+        cursor: not-allowed;
+      }
+      .transit-availability-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 9px;
+        margin: -8px 0 12px;
+        font-size: 11px;
+      }
+      .transit-availability-legend span {
+        white-space: nowrap;
+      }
+      .transit-availability-legend i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 3px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        vertical-align: -1px;
+      }
+      .transit-availability-legend .transit-none { background: #d1d5db; }
+      .transit-availability-legend .transit-low { background: #deebf7; }
+      .transit-availability-legend .transit-moderate { background: #9ecae1; }
+      .transit-availability-legend .transit-high { background: #2171b5; }
     "
     )),
     shiny::tags$script(shiny::HTML(
       "
     Shiny.addCustomMessageHandler('updateCompareMode', function(value) {
       $('#compare_mode').prop('checked', value).change();
+    });
+
+    Shiny.addCustomMessageHandler('updateTransitAvailability', function(message) {
+      const input = $('#' + message.inputId).find('input');
+      const picker = input.data('datepicker');
+      if (!input.length || !picker) return;
+
+      const byDate = {};
+      const calendar = message.calendar || {};
+      const hasCalendar = (calendar.dates || []).length > 0;
+      (calendar.dates || []).forEach(function(date, index) {
+        byDate[date] = {
+          active: calendar.active[index],
+          total: calendar.total[index],
+          pct: calendar.pct[index]
+        };
+      });
+
+      const parseLocalDate = function(value) {
+        if (!value) return null;
+        const parts = value.split('-').map(Number);
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+      };
+      picker.setStartDate(hasCalendar ? parseLocalDate(calendar.minDate) : null);
+      picker.setEndDate(hasCalendar ? parseLocalDate(calendar.maxDate) : null);
+
+      picker.o.beforeShowDay = function(date) {
+        const key = date.getFullYear() + '-' +
+          String(date.getMonth() + 1).padStart(2, '0') + '-' +
+          String(date.getDate()).padStart(2, '0');
+        const info = byDate[key];
+        if (!hasCalendar) return {};
+        if (!info) {
+          return {
+            enabled: false,
+            classes: 'transit-none',
+            tooltip: 'No active service date in the GTFS calendar'
+          };
+        }
+
+        let level = 'transit-high';
+        if (info.pct <= 0) level = 'transit-none';
+        else if (info.pct < 0.2) level = 'transit-low';
+        else if (info.pct < 0.8) level = 'transit-moderate';
+
+        return {
+          enabled: info.active > 0,
+          classes: level,
+          tooltip: info.active + '/' + info.total +
+            ' GTFS services active (' + (info.pct * 100).toFixed(1) + '%)'
+        };
+      };
+      picker.update();
     });
 
     // --- Sidebar Persistence & Resizer Logic ---
@@ -434,6 +538,13 @@ ui <- shiny::fluidPage(
         "Departure Date",
         value = "2019-05-13"
       ),
+      shiny::div(
+        class = "transit-availability-legend",
+        shiny::tags$span(shiny::tags$i(class = "transit-none"), "No service"),
+        shiny::tags$span(shiny::tags$i(class = "transit-low"), "Low (<20%)"),
+        shiny::tags$span(shiny::tags$i(class = "transit-moderate"), "Moderate"),
+        shiny::tags$span(shiny::tags$i(class = "transit-high"), "High (≥80%)")
+      ),
       shiny::textInput(
         "departure_time_1_internal",
         "Departure Time (HH:MM)",
@@ -569,6 +680,13 @@ ui <- shiny::fluidPage(
           "departure_date_2_internal",
           "Departure Date",
           value = "2019-05-13"
+        ),
+        shiny::div(
+          class = "transit-availability-legend",
+          shiny::tags$span(shiny::tags$i(class = "transit-none"), "No service"),
+          shiny::tags$span(shiny::tags$i(class = "transit-low"), "Low (<20%)"),
+          shiny::tags$span(shiny::tags$i(class = "transit-moderate"), "Moderate"),
+          shiny::tags$span(shiny::tags$i(class = "transit-high"), "High (≥80%)")
         ),
         shiny::textInput(
           "departure_time_2_internal",

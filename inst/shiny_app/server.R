@@ -38,6 +38,49 @@ function(app_args) {
     networks <- app_args$r5r_network
     network_names <- names(networks)
     has_multiple_networks <- length(networks) > 1
+    availability_by_network <- app_args$transit_availability
+    if (is.null(availability_by_network)) {
+      availability_by_network <- stats::setNames(
+        rep(list(NULL), length(network_names)),
+        network_names
+      )
+    }
+
+    calendar_payload <- function(network_name) {
+      calendar <- availability_by_network[[network_name]]
+      if (is.null(calendar) || nrow(calendar) == 0L) {
+        return(list(
+          dates = character(), active = integer(), total = integer(),
+          pct = numeric(), minDate = NULL, maxDate = NULL
+        ))
+      }
+      service_dates <- calendar$date[calendar$active_services > 0L]
+      list(
+        dates = format(calendar$date, "%Y-%m-%d"),
+        active = as.integer(calendar$active_services),
+        total = as.integer(calendar$total_services),
+        pct = as.numeric(calendar$pct_active),
+        minDate = if (length(service_dates)) {
+          format(min(service_dates), "%Y-%m-%d")
+        } else {
+          NULL
+        },
+        maxDate = if (length(service_dates)) {
+          format(max(service_dates), "%Y-%m-%d")
+        } else {
+          NULL
+        }
+      )
+    }
+    send_calendar <- function(input_id, network_name) {
+      if (is.null(network_name) || !network_name %in% network_names) {
+        network_name <- network_names[1]
+      }
+      session$sendCustomMessage(
+        "updateTransitAvailability",
+        list(inputId = input_id, calendar = calendar_payload(network_name))
+      )
+    }
 
     # Render Network Selectors
     output$network_selector_1 <- shiny::renderUI({
@@ -76,6 +119,28 @@ function(app_args) {
         NULL
       }
     })
+
+    second_network <- if (length(network_names) >= 2) {
+      network_names[2]
+    } else {
+      network_names[1]
+    }
+    send_calendar("departure_date_1_internal", network_names[1])
+    send_calendar("departure_date_2_internal", second_network)
+    if (has_multiple_networks) {
+      shiny::observeEvent(input$network_1_internal, {
+        send_calendar(
+          "departure_date_1_internal",
+          input$network_1_internal
+        )
+      }, ignoreNULL = FALSE)
+      shiny::observeEvent(input$network_2_internal, {
+        send_calendar(
+          "departure_date_2_internal",
+          input$network_2_internal
+        )
+      }, ignoreNULL = FALSE)
+    }
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)

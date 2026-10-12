@@ -1,6 +1,7 @@
 # r5rgui (development version)
 
 * `r5r_gui()` now defaults to the first date with sustained high transit availability when the network's service calendar supports estimating one.
+* Departure date pickers now use a color-blind-friendly blue scale, show no-service dates in gray, remove gaps between colored days, and show active service counts on hover.
 
 # r5rgui 0.2.0
 
