@@ -11,7 +11,8 @@ r5r_gui(
   departure_date = Sys.Date(),
   mode = c("WALK", "TRANSIT"),
   basemaps = list(Positron = mapgl::carto_style("positron"), `Dark Matter` =
-    mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager"))
+    mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager")),
+  land_use = NULL
 )
 }
 \arguments{
@@ -27,6 +28,14 @@ If a list is provided, the list names will be used as labels in the GUI. If a si
 \item{mode}{A character vector specifying the initial transport modes. This is passed directly to the \code{mode} argument in \link[r5r:detailed_itineraries]{detailed_itineraries()} (and other functions of \code{\link[r5r:r5r]{r5r}}). Defaults to \code{c("WALK", "TRANSIT")}.}
 
 \item{basemaps}{A named list of MapLibre style URLs (or style generator functions like \code{\link[mapgl:carto_style]{mapgl::carto_style()}}). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See \href{https://walker-data.com/mapgl/reference/index.html#styling-helpers}{mapgl styling helpers} for options.}
+
+\item{land_use}{Optional land use data used for the accessibility features
+(3D space-time cube and accessibility surfaces): an \code{sf} object (points or
+polygons) or a data.frame with \code{id}, \code{lon}, \code{lat} and one or more numeric
+opportunity columns (e.g. jobs, schools, population). The numeric columns
+are offered as opportunity/demand variables in the GUI. When \code{NULL}, the
+accessibility features fall back to the Porto Alegre demo grid shipped
+with \code{r5r}, which only makes sense for the demo network.}
 }
 \value{
 This function does not return a value; it launches a Shiny application.
@@ -64,5 +73,10 @@ if (interactive()) {
   # Note: For this example, we use the same network object twice.
   # In a real scenario, you would use two different networks (e.g. current vs future).
   r5r_gui(list("Baseline" = r5r_network, "Scenario A" = r5r_network))
+
+  # Provide land use data for the accessibility features
+  # (a data.frame or sf object with id and numeric opportunity columns)
+  poa_grid <- read.csv(file.path(data_path, "poa_hexgrid.csv"))
+  r5r_gui(r5r_network, land_use = poa_grid)
 }
 }

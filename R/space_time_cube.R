@@ -38,13 +38,307 @@ to_decimal_hours <- function(time) {
 
 #' Check if a mode is a transit mode
 #'
-#' @param mode Mode string
-#' @return Logical
+#' @param mode Character vector of mode strings
+#' @return Logical vector (FALSE for NA entries)
 #' @noRd
 is_transit_mode <- function(mode) {
-  if (is.null(mode) || is.na(mode) || length(mode) == 0) return(FALSE)
-  mode <- toupper(mode)
+  if (is.null(mode) || length(mode) == 0) return(FALSE)
+  mode <- toupper(as.character(mode))
   mode %in% c("BUS", "RAIL", "SUBWAY", "TRAM", "TRAMWAY", "FERRY", "CABLE_CAR", "GONDOLA", "FUNICULAR", "TRANSIT")
+}
+
+#' Call an r5r function with the correct network argument name
+#'
+#' r5r >= 2.3.0 renamed the `r5r_core` argument to `r5r_network`.
+#' @noRd
+r5r_call <- function(fn_name, r5r_network, ...) {
+  fn <- utils::getFromNamespace(fn_name, "r5r")
+  if (utils::packageVersion("r5r") >= "2.3.0") {
+    fn(r5r_network = r5r_network, ...)
+  } else {
+    fn(r5r_core = r5r_network, ...)
+  }
+}
+
+#' Combine a date and a HH:MM(:SS) string (or POSIXt) into POSIXct
+#' @noRd
+make_posixct <- function(date, time) {
+  if (inherits(time, "POSIXt")) return(time)
+  date_str <- as.character(date)
+  time <- as.character(time)
+  res <- as.POSIXct(paste(date_str, time), format = "%Y-%m-%d %H:%M:%S")
+  if (all(is.na(res))) {
+    res <- as.POSIXct(paste(date_str, time), format = "%Y-%m-%d %H:%M")
+  }
+  res
+}
+
+#' Standardize the travel time column of an r5r travel time matrix
+#'
+#' r5r returns either `travel_time` or `travel_time_p50` depending on version
+#' and settings. Returns the matrix with a `travel_time` column, or NULL.
+#' @noRd
+normalize_travel_time_col <- function(ttm) {
+  tt_col <- intersect(names(ttm), c("travel_time_p50", "travel_time"))[1]
+  if (is.na(tt_col)) return(NULL)
+  names(ttm)[names(ttm) == tt_col] <- "travel_time"
+  ttm
+}
+
+#' Cumulative departure/arrival times of itinerary legs
+#'
+#' Walks the legs of a single itinerary option (sorted by segment) and
+#' accumulates wait + segment durations from the trip departure time.
+#' @return list with POSIXct vectors `departure` and `arrival` (one per leg)
+#' @noRd
+compute_leg_times <- function(itinerary_opt, trip_dep) {
+  n <- nrow(itinerary_opt)
+  dep_times <- vector("list", n)
+  arr_times <- vector("list", n)
+  current_time <- trip_dep
+  for (i in seq_len(n)) {
+    leg <- itinerary_opt[i, ]
+    wait_time <- if ("wait" %in% names(leg)) as.numeric(leg$wait) else 0
+    seg_dur <- if ("segment_duration" %in% names(leg)) {
+      as.numeric(leg$segment_duration)
+    } else if ("duration" %in% names(leg)) {
+      as.numeric(leg$duration)
+    } else {
+      0
+    }
+    current_time <- current_time + wait_time * 60
+    dep_times[[i]] <- current_time
+    current_time <- current_time + seg_dur * 60
+    arr_times[[i]] <- current_time
+  }
+  list(departure = do.call(c, dep_times), arrival = do.call(c, arr_times))
+}
+
+#' Normalize land use input
+#'
+#' Accepts an `sf` object (points or polygons) or a data.frame with
+#' `lon`/`lat` columns, and returns a list with a plain data.frame
+#' (`id`, `lon`, `lat`, plus opportunity columns) and, when polygons were
+#' supplied, the polygon geometries keyed by the same `id`.
+#' @noRd
+normalize_land_use <- function(land_use) {
+  polygons <- NULL
+  if (inherits(land_use, "sf")) {
+    land_use <- sf::st_transform(land_use, 4326)
+    geom_type <- as.character(unique(sf::st_geometry_type(land_use)))
+    if (any(grepl("POLYGON", geom_type))) {
+      polygons <- land_use
+      coords <- suppressWarnings(
+        sf::st_coordinates(sf::st_centroid(sf::st_geometry(land_use)))
+      )
+    } else {
+      coords <- sf::st_coordinates(sf::st_geometry(land_use))
+    }
+    df <- sf::st_drop_geometry(land_use)
+    df$lon <- coords[, "X"]
+    df$lat <- coords[, "Y"]
+    land_use <- df
+  }
+  land_use <- as.data.frame(land_use)
+  if (!all(c("lon", "lat") %in% names(land_use))) {
+    stop(
+      "`land_use` must be an sf object or contain `lon` and `lat` columns.",
+      call. = FALSE
+    )
+  }
+  if (!"id" %in% names(land_use)) {
+    land_use$id <- as.character(seq_len(nrow(land_use)))
+  }
+  land_use$id <- as.character(land_use$id)
+  if (!is.null(polygons)) {
+    polygons$id <- land_use$id
+    polygons <- polygons[, "id"]
+  }
+  list(data = land_use, polygons = polygons)
+}
+
+#' Resolve the land use grid used for accessibility calculations
+#'
+#' Falls back to the Porto Alegre demo grid shipped with `r5r` when no land
+#' use data is supplied, so the demo keeps working out of the box.
+#' @noRd
+resolve_land_use <- function(land_use = NULL, quiet = FALSE) {
+  if (is.null(land_use)) {
+    poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")
+    if (poa_grid_file == "" || !file.exists(poa_grid_file)) return(NULL)
+    if (!quiet) {
+      message(
+        "No `land_use` data supplied; falling back to the Porto Alegre demo grid ",
+        "shipped with {r5r}. Pass your own grid via `land_use` for other regions."
+      )
+    }
+    land_use <- utils::read.csv(poa_grid_file)
+  }
+  normalize_land_use(land_use)
+}
+
+#' Numeric candidate opportunity columns of a land use table
+#' @noRd
+land_use_variables <- function(land_use) {
+  land_use <- as.data.frame(land_use)
+  num_cols <- names(land_use)[vapply(land_use, is.numeric, logical(1))]
+  setdiff(num_cols, c("id", "lon", "lat"))
+}
+
+#' Pick a demand variable for competitive accessibility metrics
+#' @noRd
+default_demand_variable <- function(land_use, access_variable) {
+  vars <- setdiff(land_use_variables(land_use), access_variable)
+  if (length(vars) == 0) return(NULL)
+  if ("population" %in% vars) "population" else vars[1]
+}
+
+#' Radius (in meters) for point-grid extrusion footprints
+#'
+#' Derived from the median nearest-neighbor spacing of the (projected) grid
+#' points so slices tile the surface for any grid resolution.
+#' @noRd
+derive_footprint_radius <- function(pts_proj, default = 250) {
+  n <- nrow(pts_proj)
+  if (n < 2) return(default)
+  idx <- if (n > 500) unique(round(seq(1, n, length.out = 500))) else seq_len(n)
+  d <- unclass(sf::st_distance(pts_proj[idx, ]))
+  diag(d) <- Inf
+  spacing <- stats::median(apply(d, 1, min))
+  if (!is.finite(spacing) || spacing <= 0) return(default)
+  spacing * 0.55
+}
+
+#' Compute an accessibility metric from a travel time matrix
+#'
+#' Shared dispatcher used by both the plotly space-time cube and the MapGL
+#' extrusion cube, so the metric handling cannot drift between the two.
+#'
+#' @param ttm Travel time matrix with `from_id`, `to_id`, `travel_time`.
+#' @param land_use data.frame with `id` and opportunity columns.
+#' @param access_metric One of "cumulative", "cumulative_interval", "gravity",
+#'   "cost_to_closest", "floating_catchment", "spatial_availability",
+#'   "balancing_cost".
+#' @param access_variable Opportunity column name.
+#' @param access_cutoff Travel time cutoff in minutes.
+#' @param access_n_closest N for "cost_to_closest".
+#' @param demand_variable Demand column for competitive metrics; defaults to
+#'   `"population"` (or the first other numeric column) when NULL.
+#' @return data.frame with columns `id` and `accessibility`, or NULL.
+#' @noRd
+compute_access_metric <- function(ttm,
+                                  land_use,
+                                  access_metric,
+                                  access_variable,
+                                  access_cutoff = 30,
+                                  access_n_closest = 1L,
+                                  demand_variable = NULL) {
+  land_use <- as.data.frame(land_use)
+  if (!access_variable %in% names(land_use)) return(NULL)
+  land_use[[access_variable]][is.na(land_use[[access_variable]])] <- 0
+
+  needs_demand <- access_metric %in%
+    c("floating_catchment", "spatial_availability", "balancing_cost")
+  if (needs_demand) {
+    if (is.null(demand_variable)) {
+      demand_variable <- default_demand_variable(land_use, access_variable)
+    }
+    if (is.null(demand_variable) || !demand_variable %in% names(land_use)) {
+      warning(
+        "Metric '", access_metric, "' needs a demand variable, but none is available.",
+        call. = FALSE
+      )
+      return(NULL)
+    }
+    land_use[[demand_variable]][is.na(land_use[[demand_variable]])] <- 0
+  }
+
+  acc_res <- tryCatch(
+    switch(
+      access_metric,
+      "cumulative" = accessibility::cumulative_cutoff(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        cutoff = access_cutoff,
+        fill_missing_ids = TRUE
+      ),
+      "cumulative_interval" = accessibility::cumulative_interval(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        interval = c(max(5, access_cutoff - 10), access_cutoff)
+      ),
+      "gravity" = accessibility::gravity(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        decay_function = accessibility::decay_exponential(decay_value = 0.1),
+        fill_missing_ids = TRUE
+      ),
+      "cost_to_closest" = accessibility::cost_to_closest(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        n = access_n_closest,
+        fill_missing_ids = TRUE
+      ),
+      "floating_catchment" = accessibility::floating_catchment_area(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        demand = demand_variable,
+        method = "2sfca",
+        decay_function = accessibility::decay_binary(cutoff = access_cutoff),
+        fill_missing_ids = TRUE
+      ),
+      "spatial_availability" = accessibility::spatial_availability(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        demand = demand_variable,
+        decay_function = accessibility::decay_exponential(decay_value = 0.1),
+        fill_missing_ids = TRUE
+      ),
+      "balancing_cost" = accessibility::balancing_cost(
+        travel_matrix = ttm,
+        land_use_data = land_use,
+        opportunity = access_variable,
+        travel_cost = "travel_time",
+        demand = demand_variable,
+        fill_missing_ids = TRUE
+      ),
+      NULL
+    ),
+    error = function(e) {
+      warning(
+        "Accessibility metric '", access_metric, "' failed: ",
+        conditionMessage(e),
+        call. = FALSE
+      )
+      NULL
+    }
+  )
+  if (is.null(acc_res) || nrow(acc_res) == 0) return(NULL)
+
+  # cost-based metrics report a travel time, not an opportunity count
+  score_col <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) {
+    "travel_time"
+  } else {
+    access_variable
+  }
+  if (!score_col %in% names(acc_res)) return(NULL)
+  acc_res <- as.data.frame(acc_res)
+  names(acc_res)[names(acc_res) == score_col] <- "accessibility"
+  acc_res$accessibility[is.na(acc_res$accessibility)] <- 0
+  acc_res$id <- as.character(acc_res$id)
+  acc_res[, c("id", "accessibility")]
 }
 
 #' Calculate Isochrones for Route Transfer/Dwell Locations
@@ -58,7 +352,10 @@ is_transit_mode <- function(mode) {
 #' @param r5r_network A `TransportNetwork` object (from `r5r`).
 #' @param cutoffs Numeric vector of travel time cutoffs (in minutes) for isochrones (defaults to `15`).
 #' @param mode Character vector of modes to calculate isochrones (defaults to `"WALK"`).
-#' @param date Date object or character string (YYYY-MM-DD) specifying the date of the trip (defaults to `Sys.Date()`).
+#' @param date Date object or character string (YYYY-MM-DD) specifying the date of the trip.
+#'   Defaults to `Sys.Date()`, but when transit modes are requested you should pass
+#'   a date covered by the network's GTFS calendar, otherwise routing silently
+#'   falls back to a walk-only network.
 #'
 #' @return An `sf` object containing combined isochrone polygons, or `NULL` if no isochrones were calculated.
 #' @export
@@ -69,6 +366,13 @@ calculate_route_isochrones <- function(itinerary,
                                        date = Sys.Date()) {
   if (is.null(itinerary) || nrow(itinerary) == 0 || is.null(r5r_network)) {
     return(NULL)
+  }
+  if (missing(date) && any(is_transit_mode(mode))) {
+    warning(
+      "`date` not supplied; using Sys.Date(). If the network's GTFS calendar ",
+      "does not cover today, transit isochrones will be walk-only.",
+      call. = FALSE
+    )
   }
 
   # Filter for the first option (option 1)
@@ -89,32 +393,9 @@ calculate_route_isochrones <- function(itinerary,
     itinerary_opt <- itinerary_opt[order(itinerary_opt$departure_time), ]
   }
 
-  # Helper to parse HH:MM:SS or HH:MM string to POSIXct
-  date_str <- as.character(date)
-  to_posixct <- function(time_str) {
-    if (inherits(time_str, "POSIXt")) return(time_str)
-    time_str <- as.character(time_str)
-    res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M:%S")
-    if (all(is.na(res))) {
-      res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M")
-    }
-    res
-  }
-
   # Calculate leg arrival times
-  trip_dep <- to_posixct(itinerary_opt$departure_time[1])
-  arr_times <- list()
-  
-  current_time <- trip_dep
-  for (i in seq_len(nrow(itinerary_opt))) {
-    leg <- itinerary_opt[i, ]
-    wait_time <- if ("wait" %in% names(leg)) as.numeric(leg$wait) else 0
-    seg_dur <- if ("segment_duration" %in% names(leg)) as.numeric(leg$segment_duration) else if ("duration" %in% names(leg)) as.numeric(leg$duration) else 0
-    
-    current_time <- current_time + (wait_time * 60)
-    current_time <- current_time + (seg_dur * 60)
-    arr_times[[i]] <- current_time
-  }
+  trip_dep <- make_posixct(date, itinerary_opt$departure_time[1])
+  arr_times <- compute_leg_times(itinerary_opt, trip_dep)$arrival
 
   targets <- list()
 
@@ -171,27 +452,16 @@ calculate_route_isochrones <- function(itinerary,
     origin_df <- data.frame(id = t$id, lon = t$lon, lat = t$lat)
     
     iso_res <- tryCatch({
-      if (utils::packageVersion("r5r") >= "2.3.0") {
-        r5r::isochrone(
-          r5r_network = r5r_network,
-          origins = origin_df,
-          mode = mode,
-          cutoffs = cutoffs,
-          departure_datetime = t$time,
-          verbose = FALSE,
-          progress = FALSE
-        )
-      } else {
-        r5r::isochrone(
-          r5r_core = r5r_network,
-          origins = origin_df,
-          mode = mode,
-          cutoffs = cutoffs,
-          departure_datetime = t$time,
-          verbose = FALSE,
-          progress = FALSE
-        )
-      }
+      r5r_call(
+        "isochrone",
+        r5r_network,
+        origins = origin_df,
+        mode = mode,
+        cutoffs = cutoffs,
+        departure_datetime = t$time,
+        verbose = FALSE,
+        progress = FALSE
+      )
     }, error = function(e) {
       warning("calculate_route_isochrones warning: ", e$message)
       NULL
@@ -227,7 +497,9 @@ calculate_route_isochrones <- function(itinerary,
 #' @param isochrones Logical, whether to calculate and show isochrones (defaults to `TRUE` if `r5r_network` or `isochrones_sf` is provided).
 #' @param isochrone_cutoffs Numeric vector of travel time cutoffs (in minutes) for isochrones (defaults to `15`).
 #' @param isochrone_mode Character vector of modes to calculate isochrones (defaults to `"WALK"`).
-#' @param date Date object or character string (YYYY-MM-DD) specifying the date of the trip (defaults to `Sys.Date()`).
+#' @param date Date object or character string (YYYY-MM-DD) specifying the date of the trip.
+#'   Defaults to `Sys.Date()`; when transit modes are involved, pass a date covered
+#'   by the network's GTFS calendar.
 #' @param departure_time Character string, departure time of the trip (HH:MM) (defaults to `"14:00"`).
 #' @param isochrones_sf Optional pre-calculated `sf` object of isochrones.
 #' @param accessibility_surface Logical, whether to compute and display accessibility surfaces (defaults to `TRUE` if `r5r_network` is provided).
@@ -236,6 +508,13 @@ calculate_route_isochrones <- function(itinerary,
 #' @param access_metric Character string, accessibility metric to compute (e.g. `"cumulative"`, `"gravity"`, `"cost_to_closest"`, `"balancing_cost"`, etc.).
 #' @param access_n_closest Integer, number of closest opportunities to consider for `"cost_to_closest"` (defaults to `1`).
 #' @param origin_coords Numeric vector of length 2 `c(lon, lat)` representing the origin coordinates when `itinerary = NULL`.
+#' @param land_use Land use data used for accessibility surfaces: an `sf` object
+#'   (points or polygons) or a data.frame with `id`, `lon`, `lat` and numeric
+#'   opportunity columns. When `NULL`, falls back to the Porto Alegre demo grid
+#'   shipped with `r5r` (with a message).
+#' @param demand_variable Character string, demand column of `land_use` used by
+#'   competitive metrics (floating catchment, spatial availability, balancing
+#'   cost). Defaults to `"population"` when available.
 #'
 #' @return A plotly object.
 #' @export
@@ -253,10 +532,19 @@ plot_space_time_cube <- function(itinerary = NULL,
                                  access_cutoff = 30,
                                  access_metric = "cumulative",
                                  access_n_closest = 1,
-                                 origin_coords = NULL) {
-  
+                                 origin_coords = NULL,
+                                 land_use = NULL,
+                                 demand_variable = NULL) {
+
   if (is.null(itinerary) && is.null(origin_coords)) {
     stop("plot_space_time_cube: both itinerary and origin_coords are NULL", call. = FALSE)
+  }
+  if (missing(date) && any(is_transit_mode(isochrone_mode))) {
+    warning(
+      "`date` not supplied; using Sys.Date(). If the network's GTFS calendar ",
+      "does not cover today, transit results will be walk-only.",
+      call. = FALSE
+    )
   }
 
   mode_colors <- c(
@@ -270,17 +558,7 @@ plot_space_time_cube <- function(itinerary = NULL,
     "TRANSIT" = "#7f7f7f"   # Slate gray
   )
 
-  # Helper to parse HH:MM:SS or HH:MM string to POSIXct
-  date_str <- as.character(date)
-  to_posixct <- function(time_str) {
-    if (inherits(time_str, "POSIXt")) return(time_str)
-    time_str <- as.character(time_str)
-    res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M:%S")
-    if (all(is.na(res))) {
-      res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M")
-    }
-    res
-  }
+  to_posixct <- function(time_str) make_posixct(date, time_str)
 
   p <- plotly::plot_ly()
 
@@ -317,27 +595,9 @@ plot_space_time_cube <- function(itinerary = NULL,
 
     # Calculate segment-specific departure and arrival times cumulatively
     trip_dep <- to_posixct(itinerary_proj$departure_time[1])
-    
-    dep_times <- vector("list", nrow(itinerary_proj))
-    arr_times <- vector("list", nrow(itinerary_proj))
-    
-    current_time <- trip_dep
-    for (i in seq_len(nrow(itinerary_proj))) {
-      leg <- itinerary_proj[i, ]
-      wait_time <- if ("wait" %in% names(leg)) as.numeric(leg$wait) else 0
-      seg_dur <- if ("segment_duration" %in% names(leg)) as.numeric(leg$segment_duration) else if ("duration" %in% names(leg)) as.numeric(leg$duration) else 0
-      
-      # Wait before segment
-      current_time <- current_time + (wait_time * 60)
-      dep_times[[i]] <- current_time
-      
-      # Duration of segment
-      current_time <- current_time + (seg_dur * 60)
-      arr_times[[i]] <- current_time
-    }
-    
-    itinerary_proj$leg_departure_time <- do.call(c, dep_times)
-    itinerary_proj$leg_arrival_time <- do.call(c, arr_times)
+    leg_times <- compute_leg_times(itinerary_proj, trip_dep)
+    itinerary_proj$leg_departure_time <- leg_times$departure
+    itinerary_proj$leg_arrival_time <- leg_times$arrival
 
     # 1. Build trip trajectory points
     trip_points <- list()
@@ -618,19 +878,18 @@ plot_space_time_cube <- function(itinerary = NULL,
 
   # 3. Calculate and draw accessibility raster planes at each dwell location if requested
   if (accessibility_surface && !is.null(r5r_network) && length(dwell_locations) > 0) {
-    poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")
-    poa_grid <- if (file.exists(poa_grid_file)) read.csv(poa_grid_file) else NULL
+    lu <- resolve_land_use(land_use)
+    poa_grid <- if (!is.null(lu)) lu$data else NULL
+
+    if (is.null(poa_grid) || !access_variable %in% names(poa_grid)) {
+      warning(
+        "Accessibility surface skipped: opportunity variable '", access_variable,
+        "' not found in the land use data.",
+        call. = FALSE
+      )
+    }
 
     if (!is.null(poa_grid) && access_variable %in% names(poa_grid)) {
-      # Replace NA values with 0
-      poa_grid[[access_variable]][is.na(poa_grid[[access_variable]])] <- 0
-
-      # Determine demand variable (different from opportunity)
-      demand_var <- if (access_variable == "population") "jobs" else "population"
-      if (demand_var %in% names(poa_grid)) {
-        poa_grid[[demand_var]][is.na(poa_grid[[demand_var]])] <- 0
-      }
-
       # Legend label
       var_label <- switch(access_variable,
         "jobs" = "Jobs",
@@ -660,37 +919,24 @@ plot_space_time_cube <- function(itinerary = NULL,
         orig_df <- data.frame(id = "start", lon = dwell$lon, lat = dwell$lat)
 
         ttm_start <- tryCatch({
-          if (utils::packageVersion("r5r") >= "2.3.0") {
-            r5r::travel_time_matrix(
-              r5r_network = r5r_network,
-              origins = orig_df,
-              destinations = poa_grid,
-              mode = isochrone_mode,
-              departure_datetime = dwell$arrival_time,
-              max_trip_duration = 60,
-              verbose = FALSE,
-              progress = FALSE
-            )
-          } else {
-            r5r::travel_time_matrix(
-              r5r_core = r5r_network,
-              origins = orig_df,
-              destinations = poa_grid,
-              mode = isochrone_mode,
-              departure_datetime = dwell$arrival_time,
-              max_trip_duration = 60,
-              verbose = FALSE,
-              progress = FALSE
-            )
-          }
+          r5r_call(
+            "travel_time_matrix",
+            r5r_network,
+            origins = orig_df,
+            destinations = poa_grid,
+            mode = isochrone_mode,
+            departure_datetime = dwell$arrival_time,
+            max_trip_duration = 60,
+            verbose = FALSE,
+            progress = FALSE
+          )
         }, error = function(e) {
           NULL
         })
 
         if (!is.null(ttm_start) && nrow(ttm_start) > 0) {
-          start_tt_col <- intersect(names(ttm_start), c("travel_time_p50", "travel_time"))[1]
-          names(ttm_start)[names(ttm_start) == start_tt_col] <- "travel_time"
-          
+          ttm_start <- normalize_travel_time_col(ttm_start)
+
           # Get subset of grid cells reachable from this stop
           reachable_ids <- ttm_start$to_id
           reachable_grid <- poa_grid[poa_grid$id %in% reachable_ids, ]
@@ -701,125 +947,38 @@ plot_space_time_cube <- function(itinerary = NULL,
             max_duration <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) 90 else current_cutoff
             
             ttm_all <- tryCatch({
-              if (utils::packageVersion("r5r") >= "2.3.0") {
-                r5r::travel_time_matrix(
-                  r5r_network = r5r_network,
-                  origins = reachable_grid,
-                  destinations = poa_grid,
-                  mode = isochrone_mode,
-                  departure_datetime = dwell$arrival_time,
-                  max_trip_duration = max_duration,
-                  verbose = FALSE,
-                  progress = FALSE
-                )
-              } else {
-                r5r::travel_time_matrix(
-                  r5r_core = r5r_network,
-                  origins = reachable_grid,
-                  destinations = poa_grid,
-                  mode = isochrone_mode,
-                  departure_datetime = dwell$arrival_time,
-                  max_trip_duration = max_duration,
-                  verbose = FALSE,
-                  progress = FALSE
-                )
-              }
+              r5r_call(
+                "travel_time_matrix",
+                r5r_network,
+                origins = reachable_grid,
+                destinations = poa_grid,
+                mode = isochrone_mode,
+                departure_datetime = dwell$arrival_time,
+                max_trip_duration = max_duration,
+                verbose = FALSE,
+                progress = FALSE
+              )
             }, error = function(e) {
               NULL
             })
-            
-            if (!is.null(ttm_all) && nrow(ttm_all) > 0) {
-              all_tt_col <- intersect(names(ttm_all), c("travel_time_p50", "travel_time"))[1]
-              names(ttm_all)[names(ttm_all) == all_tt_col] <- "travel_time"
-              
-              acc_res <- tryCatch({
-                if (access_metric == "cumulative") {
-                  accessibility::cumulative_cutoff(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    cutoff = current_cutoff,
-                    fill_missing_ids = TRUE
-                  )
-                } else if (access_metric == "cumulative_interval") {
-                  accessibility::cumulative_interval(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    interval = c(max(5, current_cutoff - 10), current_cutoff)
-                  )
-                } else if (access_metric == "gravity") {
-                  accessibility::gravity(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    decay_function = accessibility::decay_exponential(decay_value = 0.1),
-                    fill_missing_ids = TRUE
-                  )
-                } else if (access_metric == "cost_to_closest") {
-                  accessibility::cost_to_closest(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    n = access_n_closest,
-                    fill_missing_ids = TRUE
-                  )
-                } else if (access_metric == "floating_catchment") {
-                  accessibility::floating_catchment_area(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    demand = demand_var,
-                    method = "2sfca",
-                    decay_function = accessibility::decay_binary(cutoff = current_cutoff),
-                    fill_missing_ids = TRUE
-                  )
-                } else if (access_metric == "spatial_availability") {
-                  accessibility::spatial_availability(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    demand = demand_var,
-                    decay_function = accessibility::decay_exponential(decay_value = 0.1),
-                    fill_missing_ids = TRUE
-                  )
-                } else if (access_metric == "balancing_cost") {
-                  accessibility::balancing_cost(
-                    travel_matrix = ttm_all,
-                    land_use_data = poa_grid,
-                    opportunity = access_variable,
-                    travel_cost = "travel_time",
-                    demand = demand_var,
-                    fill_missing_ids = TRUE
-                  )
-                } else {
-                  NULL
-                }
-              }, error = function(e) {
-                NULL
-              })
-              
-              if (!is.null(acc_res) && nrow(acc_res) > 0) {
-                score_col <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) {
-                  "travel_time"
-                } else {
-                  access_variable
-                }
 
-                if (score_col %in% names(acc_res)) {
-                  names(acc_res)[names(acc_res) == score_col] <- "accessibility"
-                  acc_res$accessibility[is.na(acc_res$accessibility)] <- 0
-                  
-                  merged_grid <- merge(reachable_grid, acc_res, by = "id")
-                  all_scores <- c(all_scores, merged_grid$accessibility)
-                  results_list[[dwell_key]] <- merged_grid
-                }
+            if (!is.null(ttm_all) && nrow(ttm_all) > 0) {
+              ttm_all <- normalize_travel_time_col(ttm_all)
+
+              acc_res <- compute_access_metric(
+                ttm = ttm_all,
+                land_use = poa_grid,
+                access_metric = access_metric,
+                access_variable = access_variable,
+                access_cutoff = current_cutoff,
+                access_n_closest = access_n_closest,
+                demand_variable = demand_variable
+              )
+
+              if (!is.null(acc_res)) {
+                merged_grid <- merge(reachable_grid, acc_res, by = "id")
+                all_scores <- c(all_scores, merged_grid$accessibility)
+                results_list[[dwell_key]] <- merged_grid
               }
             }
           }
@@ -1046,175 +1205,206 @@ plot_space_time_cube <- function(itinerary = NULL,
   p
 }
 
+
 #' Get Space-Time Cube Data for MapGL Extrusion
+#'
+#' Computes an accessibility surface around `origin_coords` for a sequence of
+#' departure hours and returns stacked polygons ready for
+#' [mapgl::add_fill_extrusion_layer()]. Each hour becomes one horizontal slice
+#' of the cube; travel times are queried against the network's GTFS schedules
+#' for the supplied `date`, so transit modes produce slices that vary over the
+#' day.
+#'
+#' @param r5r_network A `TransportNetwork` object (from `r5r`).
+#' @param origin_coords Numeric vector of length 2 `c(lon, lat)`.
+#' @param access_variable Character string, opportunity column of `land_use` to
+#'   visualize (defaults to `"jobs"`).
+#' @param access_cutoff Numeric, travel-time cutoff in minutes (defaults to `30`).
+#' @param access_metric Character string, one of `"cumulative"`,
+#'   `"cumulative_interval"`, `"gravity"`, `"cost_to_closest"`,
+#'   `"floating_catchment"`, `"spatial_availability"`, `"balancing_cost"`.
+#' @param access_n_closest Integer, N for `"cost_to_closest"` (defaults to `1`).
+#' @param date Date object or character string (YYYY-MM-DD). Must be covered by
+#'   the network's GTFS calendar for transit modes to be used.
+#' @param mode Character vector of r5r routing modes used for the travel time
+#'   matrices (e.g. `c("WALK", "TRANSIT")`). Defaults to `"WALK"`; note that
+#'   with walk-only routing the hourly slices are identical, since walking does
+#'   not depend on schedules.
+#' @param land_use Land use data: an `sf` object (points or polygons) or a
+#'   data.frame with `id`, `lon`, `lat` and numeric opportunity columns. When
+#'   `NULL`, falls back to the Porto Alegre demo grid shipped with `r5r`
+#'   (with a message).
+#' @param demand_variable Character string, demand column of `land_use` used by
+#'   competitive metrics (floating catchment, spatial availability, balancing
+#'   cost). Defaults to `"population"` when available.
+#' @param hours Integer vector of departure hours to compute (defaults to `0:23`).
+#' @param max_reach_minutes Integer, travel time in minutes that defines which
+#'   grid cells around the origin are part of the surface (defaults to `60`).
+#' @param height_per_hour Numeric, vertical meters between consecutive hour
+#'   slices (defaults to `200`).
+#' @param slice_thickness Numeric, extrusion thickness of each slice in meters
+#'   (defaults to `25`).
+#' @param progress Optional function called as `progress(i, n, hour)` at the
+#'   start of each hour's computation, for progress reporting.
+#'
+#' @return An `sf` object with columns `id`, `lon`, `lat`, `accessibility`,
+#'   `hour`, `base_height`, `top_height` and `cube_label`, or `NULL` if nothing
+#'   could be computed.
 #' @export
 get_space_time_cube_data <- function(
-  r5r_network, origin_coords, access_variable = "jobs", 
-  access_cutoff = 30, access_metric = "cumulative", access_n_closest = 1L,
-  date = Sys.Date()
+  r5r_network,
+  origin_coords,
+  access_variable = "jobs",
+  access_cutoff = 30,
+  access_metric = "cumulative",
+  access_n_closest = 1L,
+  date = Sys.Date(),
+  mode = "WALK",
+  land_use = NULL,
+  demand_variable = NULL,
+  hours = 0:23,
+  max_reach_minutes = 60L,
+  height_per_hour = 200,
+  slice_thickness = 25,
+  progress = NULL
 ) {
   center_lon <- origin_coords[1]
   center_lat <- origin_coords[2]
   epsg <- get_utm_epsg(center_lon, center_lat)
 
-  date_str <- as.character(date)
-  to_posixct <- function(time_str) {
-    if (inherits(time_str, "POSIXt")) return(time_str)
-    time_str <- as.character(time_str)
-    res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M:%S")
-    if (all(is.na(res))) {
-      res <- as.POSIXct(paste(date_str, time_str), format = "%Y-%m-%d %H:%M")
-    }
-    res
+  if (missing(date) && any(is_transit_mode(mode))) {
+    warning(
+      "`date` not supplied; using Sys.Date(). If the network's GTFS calendar ",
+      "does not cover today, transit routing will silently be walk-only.",
+      call. = FALSE
+    )
   }
 
-  poa_grid_file <- system.file("extdata/poa/poa_hexgrid.csv", package = "r5r")
-  if (!file.exists(poa_grid_file)) return(NULL)
-  poa_grid <- read.csv(poa_grid_file)
-
-  if (access_variable %in% names(poa_grid)) {
-    poa_grid[[access_variable]][is.na(poa_grid[[access_variable]])] <- 0
+  lu <- resolve_land_use(land_use)
+  if (is.null(lu)) return(NULL)
+  grid <- lu$data
+  if (!access_variable %in% names(grid)) {
+    warning(
+      "Opportunity variable '", access_variable, "' not found in `land_use`.",
+      call. = FALSE
+    )
+    return(NULL)
   }
-  demand_var <- if (access_variable == "population") "jobs" else "population"
-  if (demand_var %in% names(poa_grid)) {
-    poa_grid[[demand_var]][is.na(poa_grid[[demand_var]])] <- 0
+
+  # Build extrusion footprints once: supplied polygons, or point buffers sized
+  # to the observed grid spacing so slices tile the surface at any resolution.
+  pts <- sf::st_as_sf(grid, coords = c("lon", "lat"), crs = 4326, remove = FALSE)
+  if (!is.null(lu$polygons)) {
+    footprints <- lu$polygons
+  } else {
+    pts_proj <- sf::st_transform(pts, epsg)
+    radius <- derive_footprint_radius(pts_proj)
+    footprints <- sf::st_buffer(pts_proj[, "id"], dist = radius, nQuadSegs = 4)
+    footprints <- sf::st_transform(footprints, 4326)
   }
 
-  all_polys <- list()
-  dep_hours <- 0:23 
-  
-  for (h in dep_hours) {
-    hour_str <- sprintf("%02d:00:00", h)
-    dep_dt <- to_posixct(hour_str)
-    
-    orig_df <- data.frame(id = "start", lon = center_lon, lat = center_lat)
-    
-    ttm_start <- tryCatch({
-      if (utils::packageVersion("r5r") >= "2.3.0") {
-        r5r::travel_time_matrix(r5r_network, origins = orig_df, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = 60, verbose = FALSE, progress = FALSE)
-      } else {
-        r5r::travel_time_matrix(r5r_core = r5r_network, origins = orig_df, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = 60, verbose = FALSE, progress = FALSE)
-      }
-    }, error = function(e) NULL)
+  orig_df <- data.frame(id = "origin", lon = center_lon, lat = center_lat)
+  hours <- sort(unique(as.integer(hours)))
+  all_polys <- vector("list", length(hours))
 
-    if (is.null(ttm_start) || nrow(ttm_start) == 0) next
-    
-    start_tt_col <- intersect(names(ttm_start), c("travel_time_p50", "travel_time"))[1]
-    names(ttm_start)[names(ttm_start) == start_tt_col] <- "travel_time"
-    
-    reachable_ids <- ttm_start$to_id
-    reachable_grid <- poa_grid[poa_grid$id %in% reachable_ids, ]
-    
-    if (nrow(reachable_grid) == 0) next
-    
-    max_duration <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) 90 else access_cutoff
-    
-    ttm_all <- tryCatch({
-      if (utils::packageVersion("r5r") >= "2.3.0") {
-        r5r::travel_time_matrix(r5r_network, origins = reachable_grid, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = max_duration, verbose = FALSE, progress = FALSE)
-      } else {
-        r5r::travel_time_matrix(r5r_core = r5r_network, origins = reachable_grid, destinations = poa_grid, mode = "WALK", departure_datetime = dep_dt, max_trip_duration = max_duration, verbose = FALSE, progress = FALSE)
-      }
-    }, error = function(e) NULL)
-    
-    if (is.null(ttm_all) || nrow(ttm_all) == 0) next
-    
-    all_tt_col <- intersect(names(ttm_all), c("travel_time_p50", "travel_time"))[1]
-    names(ttm_all)[names(ttm_all) == all_tt_col] <- "travel_time"
-    
-    acc_res <- tryCatch({
-      if (access_metric == "cumulative") {
-        accessibility::cumulative_cutoff(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          travel_cost = "travel_time",
-          cutoff = access_cutoff,
-          fill_missing_ids = TRUE
+  for (i in seq_along(hours)) {
+    h <- hours[i]
+    if (!is.null(progress)) progress(i, length(hours), h)
+    dep_dt <- make_posixct(date, sprintf("%02d:00:00", h))
+
+    ttm_start <- tryCatch(
+      r5r_call(
+        "travel_time_matrix",
+        r5r_network,
+        origins = orig_df,
+        destinations = grid,
+        mode = mode,
+        departure_datetime = dep_dt,
+        max_trip_duration = as.integer(max_reach_minutes),
+        verbose = FALSE,
+        progress = FALSE
+      ),
+      error = function(e) {
+        warning(
+          "travel_time_matrix failed at ", sprintf("%02d:00", h), ": ",
+          conditionMessage(e),
+          call. = FALSE
         )
-      } else if (access_metric == "cumulative_interval") {
-        accessibility::cumulative_interval(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          travel_cost = "travel_time",
-          interval = c(max(5, access_cutoff - 10), access_cutoff)
-        )
-      } else if (access_metric == "gravity") {
-        accessibility::gravity(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          travel_cost = "travel_time",
-          decay_function = accessibility::decay_exponential(decay_value = 0.1),
-          fill_missing_ids = TRUE
-        )
-      } else if (access_metric == "cost_to_closest") {
-        accessibility::cost_to_closest(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          travel_cost = "travel_time",
-          n = access_n_closest,
-          fill_missing_ids = TRUE
-        )
-      } else if (access_metric == "floating_catchment") {
-        accessibility::floating_catchment_area(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          demand = if (access_variable == "population") "jobs" else "population",
-          travel_cost = "travel_time",
-          method = "2sfca",
-          decay_function = accessibility::decay_binary(cutoff = access_cutoff),
-          fill_missing_ids = TRUE
-        )
-      } else if (access_metric == "spatial_availability") {
-        accessibility::spatial_availability(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          demand = if (access_variable == "population") "jobs" else "population",
-          travel_cost = "travel_time",
-          decay_function = accessibility::decay_exponential(decay_value = 0.1),
-          fill_missing_ids = TRUE
-        )
-      } else if (access_metric == "balancing_cost") {
-        accessibility::balancing_cost(
-          travel_matrix = ttm_all,
-          land_use_data = poa_grid,
-          opportunity = access_variable,
-          demand = if (access_variable == "population") "jobs" else "population",
-          travel_cost = "travel_time",
-          fill_missing_ids = TRUE
-        )
-      } else {
         NULL
       }
-    }, error = function(e) NULL)
-    
-    if (!is.null(acc_res) && nrow(acc_res) > 0) {
-      if (access_variable %in% names(acc_res)) {
-        names(acc_res)[names(acc_res) == access_variable] <- "accessibility"
-        acc_res$accessibility[is.na(acc_res$accessibility)] <- 0
-        
-        merged_grid <- merge(reachable_grid, acc_res, by = "id")
-        
-        pts <- sf::st_as_sf(merged_grid, coords = c("lon", "lat"), crs = 4326, remove = FALSE)
-        pts_proj <- sf::st_transform(pts, epsg)
-        polys <- sf::st_buffer(pts_proj, dist = 250, nQuadSeg = 2) 
-        polys <- sf::st_transform(polys, 4326)
-        
-        polys$base_height <- h * 200
-        polys$top_height <- polys$base_height + 25
-        polys$hour <- h
-        
-        all_polys[[length(all_polys) + 1]] <- polys
-      }
+    )
+    if (is.null(ttm_start) || nrow(ttm_start) == 0) next
+    ttm_start <- normalize_travel_time_col(ttm_start)
+    if (is.null(ttm_start)) next
+
+    reachable_grid <- grid[grid$id %in% ttm_start$to_id, ]
+    if (nrow(reachable_grid) == 0) next
+
+    max_duration <- if (access_metric %in% c("cost_to_closest", "balancing_cost")) {
+      90L
+    } else {
+      as.integer(access_cutoff)
     }
+
+    ttm_all <- tryCatch(
+      r5r_call(
+        "travel_time_matrix",
+        r5r_network,
+        origins = reachable_grid,
+        destinations = grid,
+        mode = mode,
+        departure_datetime = dep_dt,
+        max_trip_duration = max_duration,
+        verbose = FALSE,
+        progress = FALSE
+      ),
+      error = function(e) {
+        warning(
+          "travel_time_matrix failed at ", sprintf("%02d:00", h), ": ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+        NULL
+      }
+    )
+    if (is.null(ttm_all) || nrow(ttm_all) == 0) next
+    ttm_all <- normalize_travel_time_col(ttm_all)
+    if (is.null(ttm_all)) next
+
+    acc_res <- compute_access_metric(
+      ttm = ttm_all,
+      land_use = grid,
+      access_metric = access_metric,
+      access_variable = access_variable,
+      access_cutoff = access_cutoff,
+      access_n_closest = access_n_closest,
+      demand_variable = demand_variable
+    )
+    if (is.null(acc_res)) next
+
+    merged <- merge(
+      reachable_grid[, c("id", "lon", "lat")],
+      acc_res,
+      by = "id"
+    )
+    if (nrow(merged) == 0) next
+
+    polys <- merge(footprints, merged, by = "id")
+    polys$hour <- h
+    polys$base_height <- h * height_per_hour
+    polys$top_height <- polys$base_height + slice_thickness
+    polys$cube_label <- sprintf(
+      "%02d:00 | %s: %s",
+      h,
+      access_variable,
+      prettyNum(round(polys$accessibility, 2), big.mark = ",")
+    )
+
+    all_polys[[i]] <- polys
   }
-  
+
+  all_polys <- Filter(Negate(is.null), all_polys)
   if (length(all_polys) == 0) return(NULL)
-  
+
   do.call(rbind, all_polys)
 }

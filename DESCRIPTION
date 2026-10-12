@@ -16,9 +16,11 @@ Depends:
 Imports:
     accessibility,
     DT,
+    glue,
     mapgl,
     plotly,
     r5r,
+    scales,
     sf,
     shiny
 Suggests: 

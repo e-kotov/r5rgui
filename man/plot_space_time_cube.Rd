@@ -2,46 +2,76 @@
 % Please edit documentation in R/space_time_cube.R
 \name{plot_space_time_cube}
 \alias{plot_space_time_cube}
-\title{Plot 3D Space-Time Cube for an Itinerary}
+\title{Plot 3D Space-Time Cube for an Itinerary or a Single Origin}
 \usage{
 plot_space_time_cube(
-  itinerary,
+  itinerary = NULL,
   r5r_network = NULL,
   option = 1,
   isochrones = !is.null(r5r_network) || !is.null(isochrones_sf),
   isochrone_cutoffs = 15,
   isochrone_mode = "WALK",
   date = Sys.Date(),
+  departure_time = "14:00",
   isochrones_sf = NULL,
-  accessibility_surface = !is.null(r5r_network)
+  accessibility_surface = !is.null(r5r_network),
+  access_variable = "jobs",
+  access_cutoff = 30,
+  access_metric = "cumulative",
+  access_n_closest = 1,
+  origin_coords = NULL,
+  land_use = NULL,
+  demand_variable = NULL
 )
 }
 \arguments{
-\item{itinerary}{An \code{sf} object returned by \code{r5r::detailed_itineraries()}.}
+\item{itinerary}{Optional \code{sf} object returned by \code{r5r::detailed_itineraries()}.}
 
-\item{r5r_network}{Optional \code{TransportNetwork} object (from \code{r5r}).
-If provided and \code{isochrones} is \code{TRUE}, will be used to calculate isochrones at transfer/dwell locations.}
+\item{r5r_network}{Optional \code{TransportNetwork} object (from \code{r5r}).}
 
 \item{option}{Integer, which routing option from the itinerary to plot (defaults to 1).}
 
-\item{isochrones}{Logical, whether to calculate and show isochrones at transfer/dwell locations (defaults to \code{TRUE} if \code{r5r_network} or \code{isochrones_sf} is provided).}
+\item{isochrones}{Logical, whether to calculate and show isochrones (defaults to \code{TRUE} if \code{r5r_network} or \code{isochrones_sf} is provided).}
 
 \item{isochrone_cutoffs}{Numeric vector of travel time cutoffs (in minutes) for isochrones (defaults to \code{15}).}
 
 \item{isochrone_mode}{Character vector of modes to calculate isochrones (defaults to \code{"WALK"}).}
 
-\item{date}{Date object or character string (YYYY-MM-DD) specifying the date of the trip (defaults to \code{Sys.Date()}).}
+\item{date}{Date object or character string (YYYY-MM-DD) specifying the date of the trip.
+Defaults to \code{Sys.Date()}; when transit modes are involved, pass a date covered
+by the network's GTFS calendar.}
 
-\item{isochrones_sf}{Optional pre-calculated \code{sf} object of isochrones. If provided, isochrone calculations are skipped and this data is plotted directly.}
+\item{departure_time}{Character string, departure time of the trip (HH:MM) (defaults to \code{"14:00"}).}
 
-\item{accessibility_surface}{Logical, whether to compute and display a continuous travel-time surface on the floor of the cube (defaults to \code{TRUE} if \code{r5r_network} is provided).}
+\item{isochrones_sf}{Optional pre-calculated \code{sf} object of isochrones.}
+
+\item{accessibility_surface}{Logical, whether to compute and display accessibility surfaces (defaults to \code{TRUE} if \code{r5r_network} is provided).}
+
+\item{access_variable}{Character string, which opportunity variable to visualize (defaults to \code{"jobs"}).}
+
+\item{access_cutoff}{Numeric value, travel-time cutoff in minutes for accessibility calculations (defaults to \code{30}).}
+
+\item{access_metric}{Character string, accessibility metric to compute (e.g. \code{"cumulative"}, \code{"gravity"}, \code{"cost_to_closest"}, \code{"balancing_cost"}, etc.).}
+
+\item{access_n_closest}{Integer, number of closest opportunities to consider for \code{"cost_to_closest"} (defaults to \code{1}).}
+
+\item{origin_coords}{Numeric vector of length 2 \code{c(lon, lat)} representing the origin coordinates when \code{itinerary = NULL}.}
+
+\item{land_use}{Land use data used for accessibility surfaces: an \code{sf} object
+(points or polygons) or a data.frame with \code{id}, \code{lon}, \code{lat} and numeric
+opportunity columns. When \code{NULL}, falls back to the Porto Alegre demo grid
+shipped with \code{r5r} (with a message).}
+
+\item{demand_variable}{Character string, demand column of \code{land_use} used by
+competitive metrics (floating catchment, spatial availability, balancing
+cost). Defaults to \code{"population"} when available.}
 }
 \value{
 A plotly object.
 }
 \description{
-This function takes a detailed itinerary from \code{r5r::detailed_itineraries()}
-and visualizes it as a 3D trajectory in a Space-Time Cube using \code{{plotly}}.
-If the \code{r5r_network} is provided, the function can also calculate and plot
-travel-time isochrones from transfer/dwell locations.
+This function visualizes travel trajectories as 3D paths in a Space-Time Cube.
+If the \code{itinerary} argument is \code{NULL} but \code{origin_coords} is provided, the function
+switches to displaying a single-origin accessibility cube containing a vertical
+baseline at the origin and stacked accessibility surfaces at 15, 30, 45, and 60 minutes.
 }

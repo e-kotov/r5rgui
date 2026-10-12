@@ -9,6 +9,19 @@ function(app_args) {
     map_zoom <- app_args$zoom
     basemaps <- app_args$basemaps
 
+    # Land use data for accessibility features. resolve_land_use() falls back
+    # to the Porto Alegre demo grid when the user supplied nothing.
+    land_use_resolved <- tryCatch(
+      resolve_land_use(app_args$land_use),
+      error = function(e) NULL
+    )
+    land_use_data <- if (!is.null(land_use_resolved)) land_use_resolved$data else NULL
+    opportunity_choices <- if (!is.null(land_use_data)) {
+      land_use_variables(land_use_data)
+    } else {
+      character(0)
+    }
+
     # Fallback if basemaps is missing or NULL
     if (is.null(basemaps)) {
       basemaps <- list("Voyager" = mapgl::carto_style("voyager"))
@@ -33,6 +46,39 @@ function(app_args) {
       "mode_1_internal",
       selected = app_args$mode
     )
+
+    # Populate opportunity/demand selectors from the land use data instead of
+    # hardcoded variable names
+    if (length(opportunity_choices) > 0) {
+      selected_var <- if ("jobs" %in% opportunity_choices) {
+        "jobs"
+      } else {
+        opportunity_choices[1]
+      }
+      shiny::updateSelectInput(
+        session,
+        "access_variable_3d",
+        choices = opportunity_choices,
+        selected = selected_var
+      )
+      selected_demand <- if ("population" %in% opportunity_choices) {
+        "population"
+      } else {
+        setdiff(opportunity_choices, selected_var)[1]
+      }
+      shiny::updateSelectInput(
+        session,
+        "access_demand_3d",
+        choices = opportunity_choices,
+        selected = selected_demand
+      )
+    }
+
+    # Used by the UI to hide accessibility panels when no land use data exists
+    output$has_land_use <- shiny::reactive({
+      length(opportunity_choices) > 0
+    })
+    shiny::outputOptions(output, "has_land_use", suspendWhenHidden = FALSE)
 
     # Handle Network List Logic
     networks <- app_args$r5r_network
@@ -205,7 +251,7 @@ function(app_args) {
         mapgl::add_fullscreen_control(position = "bottom-right") |>
         mapgl::add_scale_control(position = "bottom-left", unit = "metric") |>
         mapgl::add_draw_control(
-          rectangle = FALSE,
+          rectangle = TRUE,
           freehand = FALSE,
           point = FALSE,
           line_string = FALSE,
@@ -216,7 +262,15 @@ function(app_args) {
 
     # --- COORDINATE HANDLING LOGIC ---
     shiny::observeEvent(input$map_click, {
-      if (isTRUE(mapgl_3d_mode_val())) return()
+      if (isTRUE(mapgl_3d_mode_val())) {
+        shiny::showNotification(
+          "Map clicks are ignored while MapGL 3D is on. Use the polygon tool to slice the cube, or turn 3D off to move the start point.",
+          id = "mapgl_3d_click_hint",
+          duration = 5,
+          type = "message"
+        )
+        return()
+      }
       coords <- list(lon = input$map_click$lng, lat = input$map_click$lat)
       coords <- list(lat = round(coords$lat, 5), lon = round(coords$lon, 5))
       locations$start <- coords
@@ -592,7 +646,7 @@ function(app_args) {
         mapgl::clear_layer(proxy, "route_layer_2")
         mapgl::clear_layer(proxy, "isochrone_layer_1")
         mapgl::clear_layer(proxy, "isochrone_layer_2")
-        mapgl::clear_legend(proxy)
+        mapgl::clear_legend(proxy, legend_ids = c("legend_1", "legend_2"))
 
         if (is.null(res)) {
           return()
@@ -863,69 +917,201 @@ function(app_args) {
       })
     })
 
-    # --- MAPGL 3D SPACE-TIME CUBE OBSERVER ---
-    shiny::observe({
-      proxy <- mapgl::maplibre_proxy("map")
-      
-      # Always clear it first when this block runs
-      mapgl::clear_layer(proxy, "spacetime_cube_layer")
+    # --- MAPGL 3D SPACE-TIME CUBE ---
+    # Computed only on explicit button click; results are cached by parameter
+    # set so replays (slicing, toggling) never recompute.
+    mapgl_cube_cache <- shiny::reactiveVal(list())
 
-      if (!isTRUE(mapgl_3d_mode_val())) return()
-      shiny::req(locations$start)
-
-      net <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
-        networks[[input$network_1_internal]]
-      } else {
-        networks[[1]]
+    mapgl_cube_result <- shiny::eventReactive(input$compute_mapgl_cube, {
+      if (!isTRUE(mapgl_3d_mode_val())) {
+        shiny::showNotification(
+          "Enable MapGL 3D mode first.",
+          type = "warning"
+        )
+        return(NULL)
+      }
+      if (is.null(locations$start)) {
+        shiny::showNotification(
+          "Set a start point on the map first (left-click).",
+          type = "warning"
+        )
+        return(NULL)
       }
 
-      shiny::showNotification("Calculating 3D MapGL Space-Time Cube...", id = "mapgl_cube_calc", duration = NULL)
-      on.exit(shiny::removeNotification("mapgl_cube_calc"), add = TRUE)
+      net_id <- if (!is.null(input$network_1_internal) && input$network_1_internal %in% names(networks)) {
+        input$network_1_internal
+      } else {
+        1L
+      }
+      net <- networks[[net_id]]
 
+      hour_step <- if (!is.null(input$cube_hour_step)) {
+        max(1L, as.integer(input$cube_hour_step))
+      } else {
+        1L
+      }
+      hours <- if (!is.null(input$cube_hours)) {
+        seq(input$cube_hours[1], input$cube_hours[2], by = hour_step)
+      } else {
+        0:23
+      }
+
+      access_variable <- if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs"
+      access_cutoff <- if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30
+      access_metric <- if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative"
+      access_n_closest <- if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+      demand_variable <- if (!is.null(input$access_demand_3d) && nzchar(input$access_demand_3d)) {
+        input$access_demand_3d
+      } else {
+        NULL
+      }
+      modes <- if (!is.null(input$mode_1_internal)) input$mode_1_internal else "WALK"
       origin_coords <- c(locations$start$lon, locations$start$lat)
 
-      cube_data <- get_space_time_cube_data(
-        r5r_network = net,
-        origin_coords = origin_coords,
-        access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
-        access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
-        access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
-        date = input$departure_date_1_internal
+      cache_key <- paste(
+        paste(round(origin_coords, 5), collapse = ","),
+        access_variable,
+        access_cutoff,
+        access_metric,
+        access_n_closest,
+        paste(demand_variable, collapse = ","),
+        as.character(input$departure_date_1_internal),
+        paste(sort(modes), collapse = ","),
+        paste(hours, collapse = ","),
+        net_id,
+        sep = "|"
       )
 
-      if (!is.null(cube_data) && nrow(cube_data) > 0) {
-        min_acc <- min(cube_data$accessibility, na.rm = TRUE)
-        max_acc <- max(cube_data$accessibility, na.rm = TRUE)
-        if (min_acc == max_acc) max_acc <- min_acc + 1
-        
-        # Save bounds for slicing
-        bbox <- sf::st_bbox(cube_data)
-        mapgl_cube_bounds(list(
-          x = c(bbox["xmin"], bbox["xmax"]),
-          y = c(bbox["ymin"], bbox["ymax"])
-        ))
-
-        mapgl::add_fill_extrusion_layer(
-          proxy,
-          id = "spacetime_cube_layer",
-          source = cube_data,
-          fill_extrusion_base = mapgl::get_column("base_height"),
-          fill_extrusion_height = mapgl::get_column("top_height"),
-          fill_extrusion_color = mapgl::interpolate(
-            column = "accessibility",
-            values = seq(min_acc, max_acc, length.out = 5),
-            stops = c("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"),
-            na_color = "#cccccc"
-          ),
-          fill_extrusion_opacity = 0.85
-        )
-        
-        # Adjust map pitch/bearing to show 3D effectively
-        mapgl::ease_to(proxy, center = origin_coords, pitch = 60, bearing = -20, duration = 1000)
-      } else {
-        shiny::showNotification("No accessibility data found for the origin.", type = "warning")
+      cache <- mapgl_cube_cache()
+      if (!is.null(cache[[cache_key]])) {
+        return(cache[[cache_key]])
       }
+
+      cube_data <- shiny::withProgress(
+        message = "Computing space-time cube",
+        value = 0,
+        {
+          get_space_time_cube_data(
+            r5r_network = net,
+            origin_coords = origin_coords,
+            access_variable = access_variable,
+            access_cutoff = access_cutoff,
+            access_metric = access_metric,
+            access_n_closest = access_n_closest,
+            date = input$departure_date_1_internal,
+            mode = modes,
+            land_use = app_args$land_use,
+            demand_variable = demand_variable,
+            hours = hours,
+            progress = function(i, n, h) {
+              shiny::incProgress(
+                1 / n,
+                detail = sprintf("Departure %02d:00 (%d of %d)", h, i, n)
+              )
+            }
+          )
+        }
+      )
+
+      if (is.null(cube_data) || nrow(cube_data) == 0) {
+        shiny::showNotification(
+          paste(
+            "No accessibility data found for this origin.",
+            "Check that the land use grid covers the area and that the",
+            "departure date is within the network's GTFS calendar."
+          ),
+          type = "warning",
+          duration = 8
+        )
+        return(NULL)
+      }
+
+      cache[[cache_key]] <- cube_data
+      mapgl_cube_cache(cache)
+      cube_data
+    }, ignoreInit = TRUE)
+
+    shiny::observe({
+      proxy <- mapgl::maplibre_proxy("map")
+
+      # Always clear first when this block runs
+      mapgl::clear_layer(proxy, "spacetime_cube_layer")
+      mapgl::clear_legend(proxy, legend_ids = "cube_legend")
+
+      if (!isTRUE(mapgl_3d_mode_val())) return()
+
+      cube_data <- mapgl_cube_result()
+      if (is.null(cube_data) || nrow(cube_data) == 0) return()
+
+      min_acc <- min(cube_data$accessibility, na.rm = TRUE)
+      max_acc <- max(cube_data$accessibility, na.rm = TRUE)
+      if (min_acc == max_acc) max_acc <- min_acc + 1
+
+      # Save bounds for slicing
+      bbox <- sf::st_bbox(cube_data)
+      mapgl_cube_bounds(list(
+        x = c(bbox["xmin"], bbox["xmax"]),
+        y = c(bbox["ymin"], bbox["ymax"])
+      ))
+
+      viridis_stops <- c("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725")
+
+      mapgl::add_fill_extrusion_layer(
+        proxy,
+        id = "spacetime_cube_layer",
+        source = cube_data,
+        fill_extrusion_base = mapgl::get_column("base_height"),
+        fill_extrusion_height = mapgl::get_column("top_height"),
+        fill_extrusion_color = mapgl::interpolate(
+          column = "accessibility",
+          values = seq(min_acc, max_acc, length.out = 5),
+          stops = viridis_stops,
+          na_color = "#cccccc"
+        ),
+        fill_extrusion_opacity = 0.85,
+        tooltip = "cube_label",
+        # apply the current brush/time filter immediately so it survives
+        # recomputes and 3D toggles instead of waiting for the next brush event
+        filter = shiny::isolate(current_cube_filter())
+      )
+
+      metric_labels <- c(
+        "cumulative" = "Reachable",
+        "cumulative_interval" = "Interval reachable",
+        "gravity" = "Gravity index",
+        "cost_to_closest" = "Min time (min) to",
+        "floating_catchment" = "FCA index",
+        "spatial_availability" = "Spatial availability",
+        "balancing_cost" = "Balancing cost (min)"
+      )
+      access_metric <- shiny::isolate(
+        if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative"
+      )
+      access_variable <- shiny::isolate(
+        if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs"
+      )
+      metric_label <- if (access_metric %in% names(metric_labels)) {
+        metric_labels[[access_metric]]
+      } else {
+        "Accessibility:"
+      }
+
+      mapgl::add_legend(
+        proxy,
+        legend_title = paste(metric_label, access_variable),
+        values = round(c(min_acc, max_acc), 1),
+        colors = viridis_stops,
+        type = "continuous",
+        position = "bottom-left",
+        unique_id = "cube_legend",
+        add = TRUE
+      )
+
+      # Adjust map pitch/bearing to show 3D effectively
+      origin_lonlat <- shiny::isolate(
+        c(locations$start$lon, locations$start$lat)
+      )
+      mapgl::ease_to(proxy, center = origin_lonlat, pitch = 60, bearing = -20, duration = 1000)
     })
 
 
@@ -997,50 +1183,47 @@ function(app_args) {
     cube_bounds <- shiny::reactiveVal(NULL)
     mapgl_cube_bounds <- shiny::reactiveVal(NULL)
 
-    shiny::observeEvent(list(input$map_drawn_features, input$slice_z, mapgl_3d_mode_val()), {
-      # Handle MapGL slicing via drawn brush
-      if (isTRUE(mapgl_3d_mode_val())) {
-        map_bounds <- mapgl_cube_bounds()
-        if (!is.null(map_bounds)) {
-          # Default to no spatial bounds filter
-          has_spatial_filter <- FALSE
-          
-          # Overwrite with drawn features if present
-          if (!is.null(input$map_drawn_features) && length(input$map_drawn_features$features) > 0) {
-            tryCatch({
-              coords <- unlist(lapply(input$map_drawn_features$features, function(f) f$geometry$coordinates))
-              lons <- coords[c(TRUE, FALSE)]
-              lats <- coords[c(FALSE, TRUE)]
-              if (length(lons) > 0 && length(lats) > 0) {
-                map_x_range <- c(min(lons), max(lons))
-                map_y_range <- c(min(lats), max(lats))
-                has_spatial_filter <- TRUE
-              }
-            }, error = function(e) NULL)
-          }
-
-          z_range <- input$slice_z
-          
-          if (has_spatial_filter) {
-            filter_expr <- list("all",
-                 list(">=", "lon", map_x_range[1]),
-                 list("<=", "lon", map_x_range[2]),
-                 list(">=", "lat", map_y_range[1]),
-                 list("<=", "lat", map_y_range[2]),
-                 list(">=", "hour", z_range[1]),
-                 list("<=", "hour", z_range[2])
-            )
-          } else {
-            filter_expr <- list("all",
-                 list(">=", "hour", z_range[1]),
-                 list("<=", "hour", z_range[2])
-            )
-          }
-          
-          proxy <- mapgl::maplibre_proxy("map")
-          mapgl::set_filter(proxy, "spacetime_cube_layer", filter_expr)
+    # Build the MapLibre filter expression for the cube layer from the current
+    # spatial brush (bbox of drawn rectangle/polygon) and the time slider.
+    # Uses explicit ["get", ...] expression syntax so property references are
+    # unambiguous, and is applied BOTH at layer creation and on later changes,
+    # so the filter survives cube recomputes and 3D toggles.
+    build_cube_filter <- function(drawn_features, z_range) {
+      conds <- list(
+        list(">=", list("get", "hour"), z_range[1]),
+        list("<=", list("get", "hour"), z_range[2])
+      )
+      if (!is.null(drawn_features) && length(drawn_features$features) > 0) {
+        coords <- tryCatch(
+          unlist(lapply(drawn_features$features, function(f) f$geometry$coordinates)),
+          error = function(e) NULL
+        )
+        if (!is.null(coords) && length(coords) >= 4) {
+          lons <- coords[c(TRUE, FALSE)]
+          lats <- coords[c(FALSE, TRUE)]
+          conds <- c(conds, list(
+            list(">=", list("get", "lon"), min(lons)),
+            list("<=", list("get", "lon"), max(lons)),
+            list(">=", list("get", "lat"), min(lats)),
+            list("<=", list("get", "lat"), max(lats))
+          ))
         }
       }
+      c(list("all"), conds)
+    }
+
+    current_cube_filter <- function() {
+      z_range <- if (!is.null(input$slice_z)) input$slice_z else c(0, 23)
+      build_cube_filter(input$map_drawn_features, z_range)
+    }
+
+    shiny::observeEvent(list(input$map_drawn_features, input$slice_z, mapgl_3d_mode_val()), {
+      # Handle MapGL slicing via drawn brush + time slider
+      if (!isTRUE(mapgl_3d_mode_val())) return()
+      if (is.null(mapgl_cube_bounds())) return()
+
+      proxy <- mapgl::maplibre_proxy("map")
+      mapgl::set_filter(proxy, "spacetime_cube_layer", current_cube_filter())
     })
 
     shiny::observeEvent(list(input$slice_x, input$slice_y, input$slice_z), {
@@ -1098,7 +1281,9 @@ function(app_args) {
           access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
           access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
           access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
+          land_use = app_args$land_use,
+          demand_variable = if (!is.null(input$access_demand_3d) && nzchar(input$access_demand_3d)) input$access_demand_3d else NULL
         )
       } else {
         shiny::req(locations$start)
@@ -1112,7 +1297,9 @@ function(app_args) {
           access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
           access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
           access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+          access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
+          land_use = app_args$land_use,
+          demand_variable = if (!is.null(input$access_demand_3d) && nzchar(input$access_demand_3d)) input$access_demand_3d else NULL
         )
       }
       
@@ -1144,7 +1331,9 @@ function(app_args) {
         access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
         access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
         access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
+        land_use = app_args$land_use,
+        demand_variable = if (!is.null(input$access_demand_3d) && nzchar(input$access_demand_3d)) input$access_demand_3d else NULL
       )
       
       if (!is.null(p$x$custom_bounds)) {
@@ -1175,7 +1364,9 @@ function(app_args) {
         access_variable = if (!is.null(input$access_variable_3d)) input$access_variable_3d else "jobs",
         access_cutoff = if (!is.null(input$access_cutoff_3d)) as.numeric(input$access_cutoff_3d) else 30,
         access_metric = if (!is.null(input$access_metric_3d)) input$access_metric_3d else "cumulative",
-        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L
+        access_n_closest = if (!is.null(input$access_n_closest_3d)) as.integer(input$access_n_closest_3d) else 1L,
+        land_use = app_args$land_use,
+        demand_variable = if (!is.null(input$access_demand_3d) && nzchar(input$access_demand_3d)) input$access_demand_3d else NULL
       )
       
       if (!is.null(p$x$custom_bounds)) {
@@ -1206,11 +1397,6 @@ function(app_args) {
 
       # If we have start/end points, clear any existing message
       copy_code_message(NULL)
-
-      departure_datetime_str <- paste(
-        input$departure_date,
-        input$departure_time
-      )
 
       # Check r5r version to determine correct function and argument names
       r5r_version_ge_230 <- utils::packageVersion("r5r") >= "2.3.0"

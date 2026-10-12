@@ -74,6 +74,15 @@ r5r_gui_demo <- function(mode = c("WALK", "TRANSIT")) {
   map_zoom <- 11
   departure_date = as.Date("2019-05-13")
 
+  # Demo land use grid with jobs/schools/healthcare/population columns,
+  # used by the accessibility features (3D cube, accessibility surfaces)
+  poa_grid_file <- file.path(data_path, "poa_hexgrid.csv")
+  land_use <- if (file.exists(poa_grid_file)) {
+    utils::read.csv(poa_grid_file)
+  } else {
+    NULL
+  }
+
   message(
     "Launching the r5rgui Shiny application in demo mode with Porto Alegre data..."
   )
@@ -84,7 +93,8 @@ r5r_gui_demo <- function(mode = c("WALK", "TRANSIT")) {
     center = map_center,
     zoom = map_zoom,
     departure_date = departure_date,
-    mode = mode
+    mode = mode,
+    land_use = land_use
   )
 }
 

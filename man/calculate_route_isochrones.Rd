@@ -21,7 +21,10 @@ calculate_route_isochrones(
 
 \item{mode}{Character vector of modes to calculate isochrones (defaults to \code{"WALK"}).}
 
-\item{date}{Date object or character string (YYYY-MM-DD) specifying the date of the trip (defaults to \code{Sys.Date()}).}
+\item{date}{Date object or character string (YYYY-MM-DD) specifying the date of the trip.
+Defaults to \code{Sys.Date()}, but when transit modes are requested you should pass
+a date covered by the network's GTFS calendar, otherwise routing silently
+falls back to a walk-only network.}
 }
 \value{
 An \code{sf} object containing combined isochrone polygons, or \code{NULL} if no isochrones were calculated.

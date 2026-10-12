@@ -118,6 +118,49 @@ test_that("plot_space_time_cube works with all 7 accessibility metrics", {
   }
 })
 
+test_that("get_space_time_cube_data returns stacked slices, incl. cost-based metrics", {
+  skip_if_not(exists("r5r_net"))
+
+  origin <- c(-51.22013, -30.03000)
+  poa_grid <- read.csv(system.file("extdata/poa/poa_hexgrid.csv", package = "r5r"))
+
+  cube <- get_space_time_cube_data(
+    r5r_network = r5r_net,
+    origin_coords = origin,
+    access_variable = "jobs",
+    access_metric = "cumulative",
+    access_cutoff = 15,
+    date = "2019-05-13",
+    mode = c("WALK", "TRANSIT"),
+    land_use = poa_grid,
+    hours = c(8, 9),
+    max_reach_minutes = 20
+  )
+  expect_s3_class(cube, "sf")
+  expect_setequal(unique(cube$hour), c(8, 9))
+  expect_true(all(
+    c("id", "lon", "lat", "accessibility", "base_height", "top_height", "cube_label") %in%
+      names(cube)
+  ))
+  expect_true(all(cube$top_height > cube$base_height))
+
+  # Regression: cost-based metrics report travel_time, not the opportunity
+  # column, and used to silently return NULL in the MapGL cube path
+  cube_cost <- get_space_time_cube_data(
+    r5r_network = r5r_net,
+    origin_coords = origin,
+    access_variable = "schools",
+    access_metric = "cost_to_closest",
+    date = "2019-05-13",
+    mode = "WALK",
+    land_use = poa_grid,
+    hours = 8,
+    max_reach_minutes = 15
+  )
+  expect_s3_class(cube_cost, "sf")
+  expect_true(nrow(cube_cost) > 0)
+})
+
 test_that("plot_space_time_cube works with single origin point (itinerary = NULL)", {
   p_base <- plot_space_time_cube(
     itinerary = NULL,

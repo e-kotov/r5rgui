@@ -10,6 +10,13 @@
 #' @param departure_date A Date object specifying the initial departure date for the trip. Defaults to the current system date.
 #' @param mode A character vector specifying the initial transport modes. This is passed directly to the `mode` argument in [detailed_itineraries()][r5r::detailed_itineraries] (and other functions of [`r5r`][r5r::r5r]). Defaults to `c("WALK", "TRANSIT")`.
 #' @param basemaps A named list of MapLibre style URLs (or style generator functions like [mapgl::carto_style()]). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See [mapgl styling helpers](https://walker-data.com/mapgl/reference/index.html#styling-helpers) for options.
+#' @param land_use Optional land use data used for the accessibility features
+#'   (3D space-time cube and accessibility surfaces): an `sf` object (points or
+#'   polygons) or a data.frame with `id`, `lon`, `lat` and one or more numeric
+#'   opportunity columns (e.g. jobs, schools, population). The numeric columns
+#'   are offered as opportunity/demand variables in the GUI. When `NULL`, the
+#'   accessibility features fall back to the Porto Alegre demo grid shipped
+#'   with `r5r`, which only makes sense for the demo network.
 #'
 #' @return This function does not return a value; it launches a Shiny application.
 #'
@@ -44,6 +51,11 @@
 #'   # Note: For this example, we use the same network object twice.
 #'   # In a real scenario, you would use two different networks (e.g. current vs future).
 #'   r5r_gui(list("Baseline" = r5r_network, "Scenario A" = r5r_network))
+#'
+#'   # Provide land use data for the accessibility features
+#'   # (a data.frame or sf object with id and numeric opportunity columns)
+#'   poa_grid <- read.csv(file.path(data_path, "poa_hexgrid.csv"))
+#'   r5r_gui(r5r_network, land_use = poa_grid)
 #' }
 r5r_gui <- function(
   r5r_network,
@@ -55,7 +67,8 @@ r5r_gui <- function(
     "Positron" = mapgl::carto_style("positron"),
     "Dark Matter" = mapgl::carto_style("dark-matter"),
     "Voyager" = mapgl::carto_style("voyager")
-  )
+  ),
+  land_use = NULL
 ) {
   if (!check_r5r_available()) {
     stop(
@@ -149,6 +162,18 @@ r5r_gui <- function(
   )
   server_factory <- source(server_factory_path, local = TRUE)$value
 
+  # Validate land_use early so users get a clear error before the app starts
+  if (!is.null(land_use)) {
+    land_use_norm <- normalize_land_use(land_use)
+    if (length(land_use_variables(land_use_norm$data)) == 0) {
+      stop(
+        "`land_use` must contain at least one numeric opportunity column ",
+        "besides `id`, `lon` and `lat`.",
+        call. = FALSE
+      )
+    }
+  }
+
   # Create a list of arguments to pass to the server
   app_args <- list(
     r5r_network = r5r_network, # This is now always a list
@@ -157,7 +182,8 @@ r5r_gui <- function(
     zoom = zoom,
     departure_date = departure_date,
     mode = mode,
-    basemaps = basemaps
+    basemaps = basemaps,
+    land_use = land_use
   )
 
   # Use the factory to create the final server function

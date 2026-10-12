@@ -516,8 +516,20 @@ ui <- shiny::fluidPage(
         "Show Accessibility raster planes at stops",
         value = FALSE
       ),
+
+      # Accessibility settings shared by the plotly cube surfaces and the
+      # MapGL extrusion cube. Choices are populated server-side from land_use.
       shiny::conditionalPanel(
-        condition = "input.show_3d_access_surface",
+        condition = "(input.show_3d_access_surface || input.mapgl_3d_mode) && !output.has_land_use",
+        shiny::p(
+          "No land use data available. Pass a grid with opportunity columns via the `land_use` argument of r5r_gui() to enable accessibility features.",
+          class = "text-muted",
+          style = "font-size: 0.9em; font-style: italic; margin-top: 10px;"
+        )
+      ),
+      shiny::conditionalPanel(
+        condition = "(input.show_3d_access_surface || input.mapgl_3d_mode) && output.has_land_use",
+        shiny::h5("Accessibility Settings"),
         shiny::selectInput(
           "access_metric_3d",
           "Accessibility Metric",
@@ -535,8 +547,15 @@ ui <- shiny::fluidPage(
         shiny::selectInput(
           "access_variable_3d",
           "Opportunity Variable",
-          choices = c("Jobs" = "jobs", "Schools" = "schools", "Healthcare" = "healthcare", "Population" = "population"),
-          selected = "jobs"
+          choices = NULL
+        ),
+        shiny::conditionalPanel(
+          condition = "input.access_metric_3d == 'floating_catchment' || input.access_metric_3d == 'spatial_availability' || input.access_metric_3d == 'balancing_cost'",
+          shiny::selectInput(
+            "access_demand_3d",
+            "Demand Variable",
+            choices = NULL
+          )
         ),
         shiny::conditionalPanel(
           condition = "input.access_metric_3d == 'cumulative' || input.access_metric_3d == 'cumulative_interval' || input.access_metric_3d == 'floating_catchment'",
@@ -558,18 +577,62 @@ ui <- shiny::fluidPage(
             min = 1,
             max = 50
           )
+        )
+      ),
+
+      # MapGL extrusion cube: explicit compute button + temporal resolution
+      shiny::conditionalPanel(
+        condition = "input.mapgl_3d_mode && output.has_land_use",
+        shiny::tags$hr(),
+        shiny::h5("MapGL Space-Time Cube"),
+        shiny::sliderInput(
+          "cube_hours",
+          "Departure Hours",
+          min = 0,
+          max = 23,
+          value = c(0, 23),
+          step = 1
         ),
+        shiny::selectInput(
+          "cube_hour_step",
+          "Hour Step",
+          choices = c("Every hour" = 1, "Every 2 hours" = 2, "Every 3 hours" = 3),
+          selected = 1
+        ),
+        shiny::actionButton(
+          "compute_mapgl_cube",
+          "Compute Space-Time Cube",
+          style = "width: 100%; margin-bottom: 10px; background-color: #21918c; color: white; border-width: 0px;"
+        ),
+        shiny::p(
+          "Uses the transport modes and departure date from Trip Parameters. Results are cached per parameter set.",
+          class = "text-muted",
+          style = "font-size: 0.85em; font-style: italic;"
+        )
+      ),
+
+      # Slicing controls apply to whichever cube is active
+      shiny::conditionalPanel(
+        condition = "input.mapgl_3d_mode || input.show_cube",
         shiny::tags$hr(),
         shiny::h5("Volume Slicing"),
-        shiny::sliderInput("slice_z", "Time Slice Range (Hour)", min = 0, max = 23, value = c(0, 23), step = 1),
+        shiny::sliderInput(
+          "slice_z",
+          "Time Slice Range (Hour)",
+          min = 0,
+          max = 23,
+          value = c(0, 23),
+          step = 1,
+          animate = shiny::animationOptions(interval = 1200, loop = TRUE)
+        ),
         shiny::conditionalPanel(
-          condition = "!input.mapgl_3d_mode",
+          condition = "!input.mapgl_3d_mode && input.show_cube",
           shiny::sliderInput("slice_y", "N-S Slice % (Vertical)", min = 0, max = 100, value = c(0, 100), step = 1),
           shiny::sliderInput("slice_x", "E-W Slice % (Horizontal)", min = 0, max = 100, value = c(0, 100), step = 1)
         ),
         shiny::conditionalPanel(
           condition = "input.mapgl_3d_mode",
-          shiny::p("Use the rectangle drawing tool on the map to slice.", class = "text-muted", style = "font-size: 0.9em; font-style: italic; margin-top: 10px;")
+          shiny::p("Use the rectangle tool (click and drag in one motion) or the polygon tool on the map to slice the cube spatially; delete the shape to reset.", class = "text-muted", style = "font-size: 0.9em; font-style: italic; margin-top: 10px;")
         )
       )
     ),
