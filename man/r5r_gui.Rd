@@ -11,7 +11,14 @@ r5r_gui(
   departure_date = NULL,
   mode = c("WALK", "TRANSIT"),
   basemaps = list(Positron = mapgl::carto_style("positron"), `Dark Matter` =
-    mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager"))
+    mapgl::carto_style("dark-matter"), Voyager = mapgl::carto_style("voyager")),
+  location_choices = NULL,
+  location_id_col = "id",
+  location_label_col = "name",
+  location_lon_col = "lon",
+  location_lat_col = "lat",
+  location_polygons = NULL,
+  location_polygon_id_col = "id"
 )
 }
 \arguments{
@@ -27,6 +34,20 @@ If a list is provided, the list names will be used as labels in the GUI. If a si
 \item{mode}{A character vector specifying the initial transport modes. This is passed directly to the \code{mode} argument in \link[r5r:detailed_itineraries]{detailed_itineraries()} (and other functions of \code{\link[r5r:r5r]{r5r}}). Defaults to \code{c("WALK", "TRANSIT")}.}
 
 \item{basemaps}{A named list of MapLibre style URLs (or style generator functions like \code{\link[mapgl:carto_style]{mapgl::carto_style()}}). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See \href{https://walker-data.com/mapgl/reference/index.html#styling-helpers}{mapgl styling helpers} for options.}
+
+\item{location_choices}{Optional data frame of named locations to use as origins and destinations. It must include the columns selected by \code{location_id_col}, \code{location_label_col}, \code{location_lon_col}, and \code{location_lat_col}.}
+
+\item{location_id_col}{Name of the identifier column in \code{location_choices}. Defaults to \code{"id"}.}
+
+\item{location_label_col}{Name of the display-label column in \code{location_choices}. Defaults to \code{"name"}.}
+
+\item{location_lon_col}{Name of the longitude column in \code{location_choices}. Defaults to \code{"lon"}.}
+
+\item{location_lat_col}{Name of the latitude column in \code{location_choices}. Defaults to \code{"lat"}.}
+
+\item{location_polygons}{Optional \code{sf} polygon layer that lets users pick those locations from the map. Its identifier column must match \code{location_choices}; polygons are transformed to longitude/latitude coordinates when needed.}
+
+\item{location_polygon_id_col}{Name of the identifier column in \code{location_polygons}. Defaults to \code{"id"}.}
 }
 \value{
 This function does not return a value; it launches a Shiny application.

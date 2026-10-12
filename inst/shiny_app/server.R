@@ -38,6 +38,10 @@ function(app_args) {
     networks <- app_args$r5r_network
     network_names <- names(networks)
     has_multiple_networks <- length(networks) > 1
+    location_choices <- app_args$location_choices
+    location_polygons <- app_args$location_polygons
+    has_location_choices <- !is.null(location_choices) && nrow(location_choices) > 0L
+    has_location_polygons <- !is.null(location_polygons)
     availability_by_network <- app_args$transit_availability
     if (is.null(availability_by_network)) {
       availability_by_network <- stats::setNames(
@@ -143,11 +147,166 @@ function(app_args) {
     }
 
     locations <- shiny::reactiveValues(start = NULL, end = NULL)
+    selected_location_ids <- shiny::reactiveValues(origin = NULL, destination = NULL)
     copy_code_message <- shiny::reactiveVal(NULL)
     r5r_exec_time_1 <- shiny::reactiveVal(NULL)
     r5r_exec_time_2 <- shiny::reactiveVal(NULL)
     compare_mode <- shiny::reactiveVal(FALSE)
     current_basemap <- shiny::reactiveVal(unname(basemaps[[1]]))
+
+    update_polygon_highlights <- function() {
+      if (!has_location_polygons) return(invisible(FALSE))
+      proxy <- mapgl::maplibre_proxy("map")
+      origin_id <- selected_location_ids$origin
+      destination_id <- selected_location_ids$destination
+      if (is.null(origin_id)) origin_id <- "__r5rgui_none__"
+      if (is.null(destination_id)) destination_id <- "__r5rgui_none__"
+      mapgl::set_filter(
+        proxy, "r5rgui_location_origin",
+        list("==", mapgl::get_column("r5rgui_location_id"), origin_id)
+      )
+      mapgl::set_filter(
+        proxy, "r5rgui_location_destination",
+        list("==", mapgl::get_column("r5rgui_location_id"), destination_id)
+      )
+      invisible(TRUE)
+    }
+
+    set_named_location <- function(target, selected_id, sync_input = FALSE) {
+      id <- if (is.null(selected_id) || !length(selected_id)) {
+        ""
+      } else {
+        as.character(selected_id[[1]])
+      }
+      is_origin <- identical(target, "origin")
+      slot <- if (is_origin) "start" else "end"
+      selected_slot <- target
+      input_id <- if (is_origin) {
+        "origin_location_internal"
+      } else {
+        "destination_location_internal"
+      }
+      marker_id <- if (is_origin) "start" else "end"
+
+      if (!nzchar(id)) {
+        locations[[slot]] <- NULL
+        selected_location_ids[[selected_slot]] <- NULL
+        session$sendCustomMessage("removeMarker", list(id = marker_id))
+        if (has_location_polygons) update_polygon_highlights()
+        return(invisible(FALSE))
+      }
+      row_index <- match(id, location_choices$id)
+      if (is.na(row_index)) return(invisible(FALSE))
+
+      coords <- list(
+        lat = location_choices$lat[[row_index]],
+        lon = location_choices$lon[[row_index]]
+      )
+      locations[[slot]] <- coords
+      selected_location_ids[[selected_slot]] <- id
+      session$sendCustomMessage(
+        "updateMarker",
+        list(id = marker_id, lng = coords$lon, lat = coords$lat)
+      )
+      if (sync_input) {
+        shiny::updateSelectizeInput(session, input_id, selected = id)
+      }
+      if (has_location_polygons) update_polygon_highlights()
+      invisible(TRUE)
+    }
+
+    output$route_selection_ui <- shiny::renderUI({
+      if (!has_location_choices) {
+        return(shiny::tagList(
+          shiny::h4("Route Selection"),
+          shiny::helpText("Left-click: Start. Right-click: End."),
+          shiny::actionButton(
+            "reset", "Reset Points",
+            style = "width: 100%; margin-bottom: 10px;"
+          ),
+          shiny::textInput(
+            "start_coords_input", "Start (Lat, Lon)",
+            placeholder = "-30.03, -51.22"
+          ),
+          shiny::textInput(
+            "end_coords_input", "End (Lat, Lon)",
+            placeholder = "-30.05, -51.18"
+          )
+        ))
+      }
+
+      choices <- stats::setNames(location_choices$id, location_choices$label)
+      shiny::tagList(
+        shiny::h4("Route Selection"),
+        shiny::helpText(if (has_location_polygons) {
+          "Choose locations below or click a polygon. Map clicks alternate between origin and destination."
+        } else {
+          "Choose an origin and destination from the location lists."
+        }),
+        if (has_location_polygons) shiny::radioButtons(
+          "location_click_target", "Next polygon click sets",
+          choices = c("Origin" = "origin", "Destination" = "destination"),
+          selected = "origin", inline = TRUE
+        ),
+        shiny::actionButton(
+          "reset", "Reset Points",
+          style = "width: 100%; margin-bottom: 10px;"
+        ),
+        shiny::selectizeInput(
+          "origin_location_internal", "Origin",
+          choices = choices, selected = "", multiple = FALSE,
+          options = list(
+            placeholder = "Select an origin",
+            onInitialize = I('function() { this.setValue(""); }')
+          )
+        ),
+        shiny::selectizeInput(
+          "destination_location_internal", "Destination",
+          choices = choices, selected = "", multiple = FALSE,
+          options = list(
+            placeholder = "Select a destination",
+            onInitialize = I('function() { this.setValue(""); }')
+          )
+        )
+      )
+    })
+
+    if (has_location_choices) {
+      shiny::observeEvent(input$origin_location_internal, {
+        set_named_location("origin", input$origin_location_internal)
+      }, ignoreInit = TRUE)
+      shiny::observeEvent(input$destination_location_internal, {
+        set_named_location("destination", input$destination_location_internal)
+      }, ignoreInit = TRUE)
+      shiny::observeEvent(input$marker_dragged, {
+        drag <- input$marker_dragged
+        target <- if (identical(drag$id, "start")) "origin" else "destination"
+        slot <- if (identical(target, "origin")) "start" else "end"
+        input_id <- if (identical(target, "origin")) {
+          "origin_location_internal"
+        } else {
+          "destination_location_internal"
+        }
+        locations[[slot]] <- list(lat = drag$lat, lon = drag$lng)
+        selected_location_ids[[target]] <- NULL
+        shiny::updateSelectizeInput(session, input_id, selected = character(0))
+        if (has_location_polygons) update_polygon_highlights()
+      }, ignoreInit = TRUE)
+      if (has_location_polygons) {
+        shiny::observeEvent(input$location_polygon_click, {
+          click <- input$location_polygon_click
+          target <- shiny::isolate(input$location_click_target)
+          if (is.null(target) || !target %in% c("origin", "destination")) {
+            target <- "origin"
+          }
+          set_named_location(target, click$id, sync_input = TRUE)
+          shiny::updateRadioButtons(
+            session, "location_click_target",
+            selected = if (identical(target, "origin")) "destination" else "origin"
+          )
+        }, ignoreInit = TRUE)
+      }
+    }
 
     output$left_sidebar_title <- shiny::renderUI({
       if (compare_mode()) "Route 1 Settings" else "Trip Parameters"
@@ -204,7 +363,7 @@ function(app_args) {
     })
 
     output$map <- mapgl::renderMaplibre({
-      mapgl::maplibre(
+      map <- mapgl::maplibre(
         center = map_center,
         zoom = map_zoom,
         style = unname(basemaps[[1]])
@@ -212,10 +371,46 @@ function(app_args) {
         mapgl::add_navigation_control(position = "bottom-right") |>
         mapgl::add_fullscreen_control(position = "bottom-right") |>
         mapgl::add_scale_control(position = "bottom-left", unit = "metric")
+      if (has_location_polygons) {
+        map <- map |>
+          mapgl::add_source(
+            id = "r5rgui_locations_source", data = location_polygons
+          ) |>
+          mapgl::add_fill_layer(
+            id = "r5rgui_location_base",
+            source = "r5rgui_locations_source",
+            fill_color = "#8ecae6",
+            fill_opacity = 0.25,
+            fill_outline_color = "#023047",
+            tooltip = "r5rgui_location_label"
+          ) |>
+          mapgl::add_fill_layer(
+            id = "r5rgui_location_origin",
+            source = "r5rgui_locations_source",
+            fill_color = "#009E73",
+            fill_opacity = 0.7,
+            fill_outline_color = "#006d77",
+            filter = list(
+              "==", mapgl::get_column("r5rgui_location_id"), "__r5rgui_none__"
+            )
+          ) |>
+          mapgl::add_fill_layer(
+            id = "r5rgui_location_destination",
+            source = "r5rgui_locations_source",
+            fill_color = "#D55E00",
+            fill_opacity = 0.7,
+            fill_outline_color = "#9d4edd",
+            filter = list(
+              "==", mapgl::get_column("r5rgui_location_id"), "__r5rgui_none__"
+            )
+          )
+      }
+      map
     })
 
     # --- COORDINATE HANDLING LOGIC ---
-    shiny::observeEvent(input$map_click, {
+    if (!has_location_choices) {
+      shiny::observeEvent(input$map_click, {
       coords <- list(lon = input$map_click$lng, lat = input$map_click$lat)
       coords <- list(lat = round(coords$lat, 5), lon = round(coords$lon, 5))
       locations$start <- coords
@@ -228,9 +423,9 @@ function(app_args) {
         "start_coords_input",
         value = paste(round(coords$lat, 5), round(coords$lon, 5), sep = ", ")
       )
-    })
+      })
 
-    shiny::observeEvent(input$js_right_click, {
+      shiny::observeEvent(input$js_right_click, {
       coords <- list(
         lon = input$js_right_click$lng,
         lat = input$js_right_click$lat
@@ -246,9 +441,9 @@ function(app_args) {
         "end_coords_input",
         value = paste(round(coords$lat, 5), round(coords$lon, 5), sep = ", ")
       )
-    })
+      })
 
-    shiny::observeEvent(input$marker_dragged, {
+      shiny::observeEvent(input$marker_dragged, {
       drag_info <- input$marker_dragged
       new_coords <- list(lon = drag_info$lng, lat = drag_info$lat)
       new_coords <- list(
@@ -278,9 +473,9 @@ function(app_args) {
           )
         )
       }
-    })
+      })
 
-    shiny::observeEvent(
+      shiny::observeEvent(
       input$start_coords_input,
       {
         shiny::req(input$start_coords_input)
@@ -308,9 +503,9 @@ function(app_args) {
         )
       },
       ignoreInit = TRUE
-    )
+      )
 
-    shiny::observeEvent(
+      shiny::observeEvent(
       input$end_coords_input,
       {
         shiny::req(input$end_coords_input)
@@ -334,14 +529,32 @@ function(app_args) {
         )
       },
       ignoreInit = TRUE
-    )
+      )
+    }
 
     shiny::observeEvent(input$reset, {
       locations$start <- NULL
       locations$end <- NULL
       session$sendCustomMessage(type = 'clearAllMarkers', message = 'clear')
-      shiny::updateTextInput(session, "start_coords_input", value = "")
-      shiny::updateTextInput(session, "end_coords_input", value = "")
+      if (has_location_choices) {
+        selected_location_ids$origin <- NULL
+        selected_location_ids$destination <- NULL
+        shiny::updateSelectizeInput(
+          session, "origin_location_internal", selected = character(0)
+        )
+        shiny::updateSelectizeInput(
+          session, "destination_location_internal", selected = character(0)
+        )
+        if (has_location_polygons) {
+          shiny::updateRadioButtons(
+            session, "location_click_target", selected = "origin"
+          )
+          update_polygon_highlights()
+        }
+      } else {
+        shiny::updateTextInput(session, "start_coords_input", value = "")
+        shiny::updateTextInput(session, "end_coords_input", value = "")
+      }
       proxy <- mapgl::maplibre_proxy("map")
       mapgl::clear_layer(proxy, "route_layer_1")
       mapgl::clear_layer(proxy, "route_layer_2")
@@ -381,6 +594,17 @@ function(app_args) {
       },
       ignoreInit = TRUE
     )
+    if (has_location_choices) {
+      shiny::observeEvent(input$origin_location_internal, {
+        copy_code_message(NULL)
+      }, ignoreInit = TRUE)
+      shiny::observeEvent(input$destination_location_internal, {
+        copy_code_message(NULL)
+      }, ignoreInit = TRUE)
+      shiny::observeEvent(input$location_polygon_click, {
+        copy_code_message(NULL)
+      }, ignoreInit = TRUE)
+    }
 
     # --- ROUTE CALCULATION ---
     route_data <- shiny::eventReactive(

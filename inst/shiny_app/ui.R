@@ -444,6 +444,16 @@ ui <- shiny::fluidPage(
                   endMarker = null;
               }
           });
+
+          Shiny.addCustomMessageHandler('removeMarker', function(message) {
+            if (message.id === 'start' && startMarker) {
+              startMarker.remove();
+              startMarker = null;
+            } else if (message.id === 'end' && endMarker) {
+              endMarker.remove();
+              endMarker = null;
+            }
+          });
           
           Shiny.addCustomMessageHandler('setPersistentStyle', function(message) {
             const mapElement = document.getElementById('map');
@@ -458,8 +468,13 @@ ui <- shiny::fluidPage(
                 const currentStyle = map.getStyle();
                 
                 // Identify layers to preserve (specifically route layers)
-                const layersToPreserve = currentStyle.layers.filter(l => 
-                  l.id && (l.id.startsWith('route') || l.id === 'route_layer_1' || l.id === 'route_layer_2')
+                const layersToPreserve = currentStyle.layers.filter(l =>
+                  l.id && (
+                    l.id.startsWith('route') ||
+                    l.id.startsWith('r5rgui_location_') ||
+                    l.id === 'route_layer_1' ||
+                    l.id === 'route_layer_2'
+                  )
                 );
                 
                 if (layersToPreserve.length === 0) {
@@ -487,6 +502,32 @@ ui <- shiny::fluidPage(
                 console.error('Error fetching/setting persistent style:', err);
                 map.setStyle(newStyleUrl, { diff: true });
               });
+          });
+
+          const getLocationFeature = (point) => {
+            const layers = [
+              'r5rgui_location_base',
+              'r5rgui_location_origin',
+              'r5rgui_location_destination'
+            ].filter(id => map.getLayer(id));
+            if (layers.length === 0) return null;
+            const features = map.queryRenderedFeatures(point, { layers: layers });
+            return features.find(feature =>
+              feature.properties && feature.properties.r5rgui_location_id !== undefined
+            ) || null;
+          };
+
+          map.on('mousemove', (e) => {
+            map.getCanvas().style.cursor = getLocationFeature(e.point) ? 'pointer' : '';
+          });
+
+          map.on('click', (e) => {
+            const feature = getLocationFeature(e.point);
+            if (!feature) return;
+            Shiny.setInputValue('location_polygon_click', {
+              id: String(feature.properties.r5rgui_location_id),
+              nonce: Math.random()
+            }, { priority: 'event' });
           });
 
           obs.disconnect();
@@ -572,23 +613,7 @@ ui <- shiny::fluidPage(
         max = 300
       ),
       shiny::hr(),
-      shiny::h4("Route Selection"),
-      shiny::helpText("Left-click: Start. Right-click: End."),
-      shiny::actionButton(
-        "reset",
-        "Reset Points",
-        style = "width: 100%; margin-bottom: 10px;"
-      ),
-      shiny::textInput(
-        "start_coords_input",
-        "Start (Lat, Lon)",
-        placeholder = "-30.03, -51.22"
-      ),
-      shiny::textInput(
-        "end_coords_input",
-        "End (Lat, Lon)",
-        placeholder = "-30.05, -51.18"
-      )
+      shiny::uiOutput("route_selection_ui")
     ),
 
     # Left Resizer

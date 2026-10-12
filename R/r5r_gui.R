@@ -10,6 +10,13 @@
 #' @param departure_date A Date object specifying the initial departure date for the trip. When omitted, the GUI estimates the first date with sustained high transit availability from the network's service calendar. If that cannot be estimated, it uses the current system date.
 #' @param mode A character vector specifying the initial transport modes. This is passed directly to the `mode` argument in [detailed_itineraries()][r5r::detailed_itineraries] (and other functions of [`r5r`][r5r::r5r]). Defaults to `c("WALK", "TRANSIT")`.
 #' @param basemaps A named list of MapLibre style URLs (or style generator functions like [mapgl::carto_style()]). The names are used in the GUI selector. Defaults to a set of Carto styles (Voyager, Positron, Dark Matter). See [mapgl styling helpers](https://walker-data.com/mapgl/reference/index.html#styling-helpers) for options.
+#' @param location_choices Optional data frame of named locations to use as origins and destinations. It must include the columns selected by `location_id_col`, `location_label_col`, `location_lon_col`, and `location_lat_col`.
+#' @param location_id_col Name of the identifier column in `location_choices`. Defaults to `"id"`.
+#' @param location_label_col Name of the display-label column in `location_choices`. Defaults to `"name"`.
+#' @param location_lon_col Name of the longitude column in `location_choices`. Defaults to `"lon"`.
+#' @param location_lat_col Name of the latitude column in `location_choices`. Defaults to `"lat"`.
+#' @param location_polygons Optional `sf` polygon layer that lets users pick those locations from the map. Its identifier column must match `location_choices`; polygons are transformed to longitude/latitude coordinates when needed.
+#' @param location_polygon_id_col Name of the identifier column in `location_polygons`. Defaults to `"id"`.
 #'
 #' @return This function does not return a value; it launches a Shiny application.
 #'
@@ -55,7 +62,14 @@ r5r_gui <- function(
     "Positron" = mapgl::carto_style("positron"),
     "Dark Matter" = mapgl::carto_style("dark-matter"),
     "Voyager" = mapgl::carto_style("voyager")
-  )
+  ),
+  location_choices = NULL,
+  location_id_col = "id",
+  location_label_col = "name",
+  location_lon_col = "lon",
+  location_lat_col = "lat",
+  location_polygons = NULL,
+  location_polygon_id_col = "id"
 ) {
   if (!check_r5r_available()) {
     stop(
@@ -101,6 +115,84 @@ r5r_gui <- function(
     primary_network <- r5r_network
     # Use the object name passed by the user
     r5r_network <- stats::setNames(list(r5r_network), r5r_network_name)
+  }
+
+  if (!is.null(location_choices)) {
+    if (!is.data.frame(location_choices)) {
+      stop("`location_choices` must be a data frame.", call. = FALSE)
+    }
+    required_location_columns <- c(
+      location_id_col, location_label_col, location_lon_col, location_lat_col
+    )
+    if (anyNA(required_location_columns) || any(!nzchar(required_location_columns))) {
+      stop("Location column arguments must be non-empty names.", call. = FALSE)
+    }
+    missing_columns <- setdiff(required_location_columns, names(location_choices))
+    if (length(missing_columns)) {
+      stop(
+        sprintf("`location_choices` is missing columns: %s.",
+                paste(missing_columns, collapse = ", ")),
+        call. = FALSE
+      )
+    }
+    location_choices <- data.frame(
+      id = as.character(location_choices[[location_id_col]]),
+      label = as.character(location_choices[[location_label_col]]),
+      lon = suppressWarnings(as.numeric(location_choices[[location_lon_col]])),
+      lat = suppressWarnings(as.numeric(location_choices[[location_lat_col]])),
+      stringsAsFactors = FALSE
+    )
+    if (!nrow(location_choices)) {
+      stop("`location_choices` must contain at least one row.", call. = FALSE)
+    }
+    if (anyNA(location_choices$id) || any(!nzchar(trimws(location_choices$id))) ||
+        anyDuplicated(location_choices$id)) {
+      stop("Location identifiers must be non-empty and unique.", call. = FALSE)
+    }
+    if (anyNA(location_choices$label) || any(!nzchar(trimws(location_choices$label)))) {
+      stop("Location labels must be non-empty.", call. = FALSE)
+    }
+    if (any(!is.finite(location_choices$lon)) ||
+        any(!is.finite(location_choices$lat)) ||
+        any(abs(location_choices$lon) > 180) ||
+        any(abs(location_choices$lat) > 90)) {
+      stop("Location coordinates must be finite longitude/latitude values.", call. = FALSE)
+    }
+  } else if (!is.null(location_polygons)) {
+    stop("`location_polygons` requires `location_choices`.", call. = FALSE)
+  }
+
+  if (!is.null(location_polygons)) {
+    if (!inherits(location_polygons, "sf")) {
+      stop("`location_polygons` must be an sf object.", call. = FALSE)
+    }
+    if (length(location_polygon_id_col) != 1L || is.na(location_polygon_id_col) ||
+        !nzchar(location_polygon_id_col) ||
+        !location_polygon_id_col %in% names(location_polygons)) {
+      stop("`location_polygons` must contain `location_polygon_id_col`.", call. = FALSE)
+    }
+    polygon_types <- as.character(sf::st_geometry_type(
+      location_polygons, by_geometry = TRUE
+    ))
+    if (!length(polygon_types) ||
+        any(!polygon_types %in% c("POLYGON", "MULTIPOLYGON"))) {
+      stop("`location_polygons` must contain polygon or multipolygon geometry.", call. = FALSE)
+    }
+    polygon_crs <- sf::st_crs(location_polygons)
+    if (is.na(polygon_crs)) {
+      stop("`location_polygons` must have a defined coordinate reference system.", call. = FALSE)
+    }
+    if (polygon_crs != sf::st_crs(4326)) {
+      location_polygons <- sf::st_transform(location_polygons, 4326)
+    }
+    polygon_ids <- as.character(location_polygons[[location_polygon_id_col]])
+    if (anyNA(polygon_ids) || any(!polygon_ids %in% location_choices$id)) {
+      stop("Every polygon identifier must match an identifier in `location_choices`.", call. = FALSE)
+    }
+    location_polygons[["r5rgui_location_id"]] <- polygon_ids
+    location_polygons[["r5rgui_location_label"]] <- location_choices$label[
+      match(polygon_ids, location_choices$id)
+    ]
   }
 
   # check_transit_availability() with date discovery and date ranges is
@@ -176,7 +268,9 @@ r5r_gui <- function(
     departure_date = departure_date,
     transit_availability = transit_availability,
     mode = mode,
-    basemaps = basemaps
+    basemaps = basemaps,
+    location_choices = location_choices,
+    location_polygons = location_polygons
   )
 
   # Use the factory to create the final server function

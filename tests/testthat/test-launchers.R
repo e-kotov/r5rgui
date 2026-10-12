@@ -132,6 +132,76 @@ test_that("r5r_gui() guesses a departure date when none is supplied", {
   expect_identical(server_env$app_args$departure_date, guessed_date)
 })
 
+test_that("r5r_gui() normalizes named locations and matching polygons", {
+  captured_server_function <- NULL
+  local_mocked_bindings(
+    get_transit_availability_calendar = function(network) NULL,
+    .package = "r5rgui"
+  )
+  local_mocked_bindings(
+    shinyApp = function(ui, server) captured_server_function <<- server,
+    .package = "shiny"
+  )
+
+  choices <- data.frame(
+    code = c("a", "b"), label = c("Alpha", "Beta"),
+    longitude = c(-51.2, -51.1), latitude = c(-30.0, -30.1)
+  )
+  polygons <- sf::st_sf(
+    code = c("a", "b"),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(rbind(c(0, 0), c(10, 0), c(10, 10), c(0, 10), c(0, 0)))),
+      sf::st_polygon(list(rbind(c(20, 20), c(30, 20), c(30, 30), c(20, 30), c(20, 20)))),
+      crs = 3857
+    )
+  )
+
+  r5r_gui(
+    r5r_network = "dummy network",
+    center = c(-51.2, -30.0), zoom = 11,
+    departure_date = as.Date("2025-01-10"),
+    location_choices = choices,
+    location_id_col = "code", location_label_col = "label",
+    location_lon_col = "longitude", location_lat_col = "latitude",
+    location_polygons = polygons, location_polygon_id_col = "code"
+  )
+
+  app_args <- rlang::fn_env(captured_server_function)$app_args
+  expect_identical(app_args$location_choices$id, c("a", "b"))
+  expect_identical(app_args$location_choices$label, c("Alpha", "Beta"))
+  expect_equal(app_args$location_choices$lon, c(-51.2, -51.1))
+  expect_equal(app_args$location_choices$lat, c(-30.0, -30.1))
+  expect_equal(sf::st_crs(app_args$location_polygons), sf::st_crs(4326))
+  expect_identical(
+    app_args$location_polygons$r5rgui_location_id,
+    c("a", "b")
+  )
+  expect_identical(
+    app_args$location_polygons$r5rgui_location_label,
+    c("Alpha", "Beta")
+  )
+})
+
+test_that("r5r_gui() rejects invalid named location inputs", {
+  expect_error(
+    r5r_gui("dummy", center = c(0, 0), zoom = 10,
+            location_choices = data.frame(id = "a")),
+    "missing columns"
+  )
+  expect_error(
+    r5r_gui("dummy", center = c(0, 0), zoom = 10,
+            location_polygons = sf::st_sf(geometry = sf::st_sfc(crs = 4326))),
+    "requires `location_choices`"
+  )
+  expect_error(
+    r5r_gui(
+      "dummy", center = c(0, 0), zoom = 10,
+      location_choices = data.frame(id = c("a", "a"), name = c("A", "B"), lon = 0, lat = 0)
+    ),
+    "unique"
+  )
+})
+
 test_that("r5r_gui() uses today's date with older r5r releases", {
   dummy_net <- list(name = "dummy_network_object")
   captured_server_function <- NULL
